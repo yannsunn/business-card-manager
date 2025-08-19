@@ -39,13 +39,13 @@ export default function NewCardPage() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
-  const [currentImageSide, setCurrentImageSide] = useState<'front' | 'back'>('front');
 
   // 画像がアップロードされたら自動でAI解析
   useEffect(() => {
     if (uploadedImages.front && !isAnalyzing && !formData.name) {
       analyzeWithAI();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadedImages.front]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'file' | 'camera') => {

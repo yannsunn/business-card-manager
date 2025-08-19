@@ -153,7 +153,7 @@ export default function BulkUploadPage() {
     setIsProcessing(false);
   };
 
-  const updateCardData = (field: keyof BusinessCard, value: any) => {
+  const updateCardData = (field: keyof BusinessCard, value: unknown) => {
     setCards(prev => prev.map((card, index) => 
       index === currentCardIndex 
         ? { ...card, data: { ...card.data, [field]: value } }
