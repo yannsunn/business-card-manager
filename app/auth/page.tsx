@@ -23,8 +23,9 @@ export default function AuthPage() {
         await signIn(email, password);
       }
       router.push('/dashboard');
-    } catch (error: any) {
-      setError(getErrorMessage(error.code));
+    } catch (error) {
+      const err = error as { code?: string };
+      setError(getErrorMessage(err.code || 'unknown'));
     }
   };
 
@@ -32,8 +33,9 @@ export default function AuthPage() {
     try {
       await signInWithGoogle();
       router.push('/dashboard');
-    } catch (error: any) {
-      setError(getErrorMessage(error.code));
+    } catch (error) {
+      const err = error as { code?: string };
+      setError(getErrorMessage(err.code || 'unknown'));
     }
   };
 

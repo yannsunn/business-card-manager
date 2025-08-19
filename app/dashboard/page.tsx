@@ -6,9 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   collection, 
   query, 
-  onSnapshot, 
-  deleteDoc,
-  doc 
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
@@ -51,18 +49,19 @@ export default function DashboardPage() {
     setFilteredCards(filtered);
   }, [searchTerm, cards]);
 
-  const handleDelete = async (cardId: string) => {
-    if (!user || !cardId) return;
-    
-    if (confirm('本当に削除しますか？')) {
-      try {
-        await deleteDoc(doc(db, 'users', user.uid, 'cards', cardId));
-      } catch (error) {
-        console.error('削除エラー:', error);
-        alert('削除に失敗しました。');
-      }
-    }
-  };
+  // 未使用の関数を削除（削除機能は詳細ページに移動）
+  // const handleDelete = async (cardId: string) => {
+  //   if (!user || !cardId) return;
+  //   
+  //   if (confirm('本当に削除しますか？')) {
+  //     try {
+  //       await deleteDoc(doc(db, 'users', user.uid, 'cards', cardId));
+  //     } catch (error) {
+  //       console.error('削除エラー:', error);
+  //       alert('削除に失敗しました。');
+  //     }
+  //   }
+  // };
 
   const handleLogout = async () => {
     await logout();

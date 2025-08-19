@@ -216,12 +216,14 @@ export default function NewCardPage() {
               <div className="flex gap-4 justify-center">
                 {frontImage && (
                   <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={frontImage} alt="表面" className="max-h-40 rounded" />
                     <p className="text-sm mt-2">表面</p>
                   </div>
                 )}
                 {backImage && (
                   <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={backImage} alt="裏面" className="max-h-40 rounded" />
                     <p className="text-sm mt-2">裏面</p>
                   </div>

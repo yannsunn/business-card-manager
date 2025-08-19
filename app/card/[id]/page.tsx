@@ -47,7 +47,7 @@ export default function CardDetailPage({ params }: { params: { id: string } }) {
     if (!user || !card?.id) return;
 
     try {
-      const { id, ...updateData } = editData;
+      const { ...updateData } = editData;
       await updateDoc(doc(db, 'users', user.uid, 'cards', card.id), {
         ...updateData,
         updatedAt: new Date().toISOString()
@@ -267,12 +267,14 @@ export default function CardDetailPage({ params }: { params: { id: string } }) {
                 {card.frontImageBase64 && (
                   <div>
                     <p className="text-lg font-semibold text-white mb-2">名刺画像（表）</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={card.frontImageBase64} alt="名刺表面" className="w-full rounded-lg" />
                   </div>
                 )}
                 {card.backImageBase64 && (
                   <div>
                     <p className="text-lg font-semibold text-white mb-2">名刺画像（裏）</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={card.backImageBase64} alt="名刺裏面" className="w-full rounded-lg" />
                   </div>
                 )}
