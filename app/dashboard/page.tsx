@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
-import { Plus, Search, LogOut } from 'lucide-react';
+import { Plus, Search, LogOut, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -126,12 +126,29 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <Link
-          href="/card/new"
-          className="fixed bottom-8 right-8 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700"
-        >
-          <Plus size={24} />
-        </Link>
+        {/* フローティングアクションボタン */}
+        <div className="fixed bottom-8 right-8 flex flex-col gap-3">
+          <Link
+            href="/card/bulk"
+            className="bg-green-600 text-white rounded-full p-4 shadow-lg hover:bg-green-700 group relative"
+            title="一括アップロード"
+          >
+            <Upload size={24} />
+            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+              一括アップロード
+            </span>
+          </Link>
+          <Link
+            href="/card/new"
+            className="bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 group relative"
+            title="名刺を追加"
+          >
+            <Plus size={24} />
+            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+              名刺を追加
+            </span>
+          </Link>
+        </div>
       </div>
     </div>
   );

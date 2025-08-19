@@ -1,19 +1,26 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Sparkles, X, Check, Edit2 } from 'lucide-react';
 import jsQR from 'jsqr';
 
 export default function NewCardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  
+  const [step, setStep] = useState<'upload' | 'review'>('upload');
+  const [uploadedImages, setUploadedImages] = useState<{ front: string; back: string }>({
+    front: '',
+    back: ''
+  });
   
   const [formData, setFormData] = useState<BusinessCard>({
     name: '',
@@ -24,19 +31,26 @@ export default function NewCardPage() {
     phones: [],
     line_ids: [],
     businessContent: '',
-    exchangeDate: '',
+    exchangeDate: new Date().toISOString().split('T')[0],
     notes: '',
     frontImageBase64: '',
     backImageBase64: ''
   });
 
-  const [frontImage, setFrontImage] = useState<string>('');
-  const [backImage, setBackImage] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isManualEdit, setIsManualEdit] = useState(false);
+  const [currentImageSide, setCurrentImageSide] = useState<'front' | 'back'>('front');
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 画像がアップロードされたら自動でAI解析
+  useEffect(() => {
+    if (uploadedImages.front && !isAnalyzing && !formData.name) {
+      analyzeWithAI();
+    }
+  }, [uploadedImages.front]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'file' | 'camera') => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
     const readFile = (file: File): Promise<string> => {
       return new Promise((resolve) => {
@@ -46,17 +60,43 @@ export default function NewCardPage() {
       });
     };
 
+    // 最初の画像を表面として設定
     if (files[0]) {
       const base64 = await readFile(files[0]);
-      setFrontImage(base64);
+      setUploadedImages(prev => ({ ...prev, front: base64 }));
       setFormData(prev => ({ ...prev, frontImageBase64: base64 }));
     }
 
+    // 2枚目があれば裏面として設定
     if (files[1]) {
       const base64 = await readFile(files[1]);
-      setBackImage(base64);
+      setUploadedImages(prev => ({ ...prev, back: base64 }));
       setFormData(prev => ({ ...prev, backImageBase64: base64 }));
     }
+
+    // 入力をリセット
+    if (source === 'file' && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (source === 'camera' && cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+  };
+
+  const handleSingleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'back') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setUploadedImages(prev => ({ ...prev, [side]: base64 }));
+      setFormData(prev => ({ 
+        ...prev, 
+        [`${side}ImageBase64`]: base64 
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const scanQRCode = (base64Image: string): Promise<string | null> => {
@@ -79,21 +119,18 @@ export default function NewCardPage() {
   };
 
   const analyzeWithAI = async () => {
-    if (!frontImage) {
-      alert('画像をアップロードしてください。');
-      return;
-    }
+    if (!uploadedImages.front) return;
 
     setIsAnalyzing(true);
 
     try {
       // QRコードスキャン
       const qrUrls: string[] = [];
-      const frontQr = await scanQRCode(frontImage);
+      const frontQr = await scanQRCode(uploadedImages.front);
       if (frontQr) qrUrls.push(frontQr);
       
-      if (backImage) {
-        const backQr = await scanQRCode(backImage);
+      if (uploadedImages.back) {
+        const backQr = await scanQRCode(uploadedImages.back);
         if (backQr) qrUrls.push(backQr);
       }
 
@@ -102,8 +139,8 @@ export default function NewCardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          frontImage: frontImage.split(',')[1],
-          backImage: backImage ? backImage.split(',')[1] : null
+          frontImage: uploadedImages.front.split(',')[1],
+          backImage: uploadedImages.back ? uploadedImages.back.split(',')[1] : null
         })
       });
 
@@ -123,21 +160,28 @@ export default function NewCardPage() {
         emails: result.emails || [],
         phones: result.phones || [],
         line_ids: result.line_ids || [],
-        notes: result.other_info || prev.notes
+        notes: result.other_info || prev.notes,
+        exchangeDate: prev.exchangeDate
       }));
 
-      alert('画像の解析が完了しました。内容を確認してください。');
+      setStep('review');
     } catch (error) {
       console.error('AI解析エラー:', error);
       alert('画像の解析に失敗しました。手動で入力してください。');
+      setStep('review');
+      setIsManualEdit(true);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!user) return;
+
+    if (!formData.name || !formData.companyName) {
+      alert('氏名と会社名は必須項目です。');
+      return;
+    }
 
     try {
       const docData = {
@@ -174,11 +218,31 @@ export default function NewCardPage() {
     setFormData({ ...formData, [field]: arr });
   };
 
+  const resetAndStartOver = () => {
+    setStep('upload');
+    setUploadedImages({ front: '', back: '' });
+    setFormData({
+      name: '',
+      companyName: '',
+      title: '',
+      urls: [],
+      emails: [],
+      phones: [],
+      line_ids: [],
+      businessContent: '',
+      exchangeDate: new Date().toISOString().split('T')[0],
+      notes: '',
+      frontImageBase64: '',
+      backImageBase64: ''
+    });
+    setIsManualEdit(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
-      <div className="max-w-7xl mx-auto p-6 md:p-8">
+      <div className="max-w-4xl mx-auto p-6 md:p-8">
         <header className="mb-6 flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-white">新規名刺登録</h2>
+          <h2 className="text-3xl font-bold text-white">名刺を追加</h2>
           <Link
             href="/dashboard"
             className="bg-gray-700 text-gray-300 rounded-lg py-2 px-4 hover:bg-gray-600 flex items-center gap-2"
@@ -188,227 +252,359 @@ export default function NewCardPage() {
           </Link>
         </header>
 
-        <div className="bg-gray-800 p-6 rounded-lg mb-6">
-          <h3 className="text-xl font-bold text-white mb-4">1. 名刺画像をアップロード</h3>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-gray-500 transition-colors"
-          >
-            {!frontImage && !backImage ? (
-              <>
-                <Upload size={48} className="mx-auto text-gray-500 mb-4" />
-                <p className="text-gray-400">
-                  画像をクリックして選択（最大2枚）<br />
-                  またはドラッグ＆ドロップ
-                </p>
-              </>
-            ) : (
-              <div className="flex gap-4 justify-center">
-                {frontImage && (
-                  <div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={frontImage} alt="表面" className="max-h-40 rounded" />
-                    <p className="text-sm mt-2">表面</p>
+        {step === 'upload' && (
+          <div className="space-y-6">
+            {/* メインアップロードエリア */}
+            <div className="bg-gray-800 p-8 rounded-lg">
+              {!uploadedImages.front ? (
+                <>
+                  <h3 className="text-xl font-semibold text-white mb-6 text-center">
+                    名刺の写真を撮影またはアップロード
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* カメラ撮影 */}
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      onChange={(e) => handleImageUpload(e, 'camera')}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-colors"
+                    >
+                      <Camera size={48} />
+                      <span className="text-lg font-medium">カメラで撮影</span>
+                      <span className="text-sm text-blue-200">表・裏を続けて撮影可能</span>
+                    </button>
+
+                    {/* ファイルアップロード */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handleImageUpload(e, 'file')}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-colors"
+                    >
+                      <Upload size={48} />
+                      <span className="text-lg font-medium">画像を選択</span>
+                      <span className="text-sm text-gray-400">複数枚選択可能</span>
+                    </button>
                   </div>
-                )}
-                {backImage && (
-                  <div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={backImage} alt="裏面" className="max-h-40 rounded" />
-                    <p className="text-sm mt-2">裏面</p>
+
+                  <p className="text-center text-gray-400 mt-6 text-sm">
+                    ※ 名刺の表面（必須）と裏面（任意）をアップロードしてください
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  <h3 className="text-xl font-semibold text-white text-center">
+                    アップロードされた画像
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 表面 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-300">表面</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleSingleImageUpload(e, 'front')}
+                          className="hidden"
+                          id="front-reupload"
+                        />
+                        <label
+                          htmlFor="front-reupload"
+                          className="text-blue-400 hover:text-blue-300 cursor-pointer text-sm"
+                        >
+                          変更
+                        </label>
+                      </div>
+                      <div className="bg-gray-700 rounded-lg p-4 flex items-center justify-center min-h-[200px]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={uploadedImages.front}
+                          alt="名刺表面"
+                          className="max-w-full max-h-[300px] rounded"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 裏面 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-300">裏面</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleSingleImageUpload(e, 'back')}
+                          className="hidden"
+                          id="back-upload"
+                        />
+                        <label
+                          htmlFor="back-upload"
+                          className="text-blue-400 hover:text-blue-300 cursor-pointer text-sm"
+                        >
+                          {uploadedImages.back ? '変更' : '追加'}
+                        </label>
+                      </div>
+                      <div className="bg-gray-700 rounded-lg p-4 flex items-center justify-center min-h-[200px]">
+                        {uploadedImages.back ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={uploadedImages.back}
+                            alt="名刺裏面"
+                            className="max-w-full max-h-[300px] rounded"
+                          />
+                        ) : (
+                          <div className="text-gray-500 text-center">
+                            <Upload size={32} className="mx-auto mb-2" />
+                            <p className="text-sm">裏面画像（任意）</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={resetAndStartOver}
+                      className="bg-gray-600 text-white rounded-lg py-3 px-6 hover:bg-gray-700 transition-colors"
+                    >
+                      撮り直す
+                    </button>
+                    <button
+                      onClick={analyzeWithAI}
+                      disabled={isAnalyzing}
+                      className="bg-indigo-600 text-white rounded-lg py-3 px-8 hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                    >
+                      {isAnalyzing ? (
+                        <>処理中...</>
+                      ) : (
+                        <>
+                          <Sparkles size={20} />
+                          AIで自動入力
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 処理中のオーバーレイ */}
+            {isAnalyzing && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-gray-800 p-8 rounded-lg text-center">
+                  <div className="loader mx-auto mb-4"></div>
+                  <p className="text-white text-lg">AIが名刺を解析中...</p>
+                  <p className="text-gray-400 text-sm mt-2">しばらくお待ちください</p>
+                </div>
               </div>
             )}
           </div>
+        )}
 
-          {frontImage && (
-            <button
-              onClick={analyzeWithAI}
-              disabled={isAnalyzing}
-              className="mt-4 w-full bg-indigo-600 text-white rounded-lg py-3 px-6 hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <Sparkles size={20} />
-              {isAnalyzing ? 'AIで解析中...' : 'AIで画像を解析して入力'}
-            </button>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg">
-          <h3 className="text-xl font-bold text-white mb-4">2. 内容を確認・修正</h3>
-          
+        {step === 'review' && (
           <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">氏名 *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                required
-              />
-            </div>
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-white">
+                  {isManualEdit ? '情報を入力' : '解析結果を確認'}
+                </h3>
+                <button
+                  onClick={() => setIsManualEdit(!isManualEdit)}
+                  className="text-blue-400 hover:text-blue-300 flex items-center gap-2"
+                >
+                  <Edit2 size={18} />
+                  {isManualEdit ? '自動入力に戻る' : '手動で編集'}
+                </button>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">会社名 *</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                required
-              />
-            </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      氏名 <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                      required
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">役職</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-              />
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      会社名 <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">メールアドレス</label>
-              {formData.emails.map((email, index) => (
-                <div key={index} className="flex gap-2 mb-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">役職</label>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => handleArrayChange('emails', index, e.target.value)}
-                    className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                    placeholder="example@email.com"
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">メールアドレス</label>
+                  {formData.emails.map((email, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => handleArrayChange('emails', index, e.target.value)}
+                        className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                        placeholder="example@email.com"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('emails', index)}
+                        className="text-red-400 hover:text-red-300 px-2"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.emails.length < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('emails')}
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      + メールアドレスを追加
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">電話番号</label>
+                  {formData.phones.map((phone, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => handleArrayChange('phones', index, e.target.value)}
+                        className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                        placeholder="090-1234-5678"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('phones', index)}
+                        className="text-red-400 hover:text-red-300 px-2"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.phones.length < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('phones')}
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      + 電話番号を追加
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">メモ</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                    placeholder="その他の情報やメモ"
+                  />
+                </div>
+
+                <div className="flex gap-4 justify-end pt-4">
                   <button
-                    type="button"
-                    onClick={() => removeArrayItem('emails', index)}
-                    className="text-red-400 hover:text-red-300 px-2"
+                    onClick={resetAndStartOver}
+                    className="bg-gray-600 text-white rounded-lg py-2 px-6 hover:bg-gray-700 transition-colors"
                   >
-                    ×
+                    最初からやり直す
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    className="bg-green-600 text-white rounded-lg py-2 px-8 hover:bg-green-700 flex items-center gap-2 transition-colors"
+                  >
+                    <Check size={20} />
+                    保存
                   </button>
                 </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => addArrayItem('emails')}
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                + メールアドレスを追加
-              </button>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">電話番号</label>
-              {formData.phones.map((phone, index) => (
-                <div key={index} className="flex gap-2 mb-2">
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => handleArrayChange('phones', index, e.target.value)}
-                    className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                    placeholder="090-1234-5678"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeArrayItem('phones', index)}
-                    className="text-red-400 hover:text-red-300 px-2"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => addArrayItem('phones')}
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                + 電話番号を追加
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Webサイト・リンク</label>
-              {formData.urls.map((url, index) => (
-                <div key={index} className="flex gap-2 mb-2">
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => handleArrayChange('urls', index, e.target.value)}
-                    className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                    placeholder="https://example.com"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeArrayItem('urls', index)}
-                    className="text-red-400 hover:text-red-300 px-2"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => addArrayItem('urls')}
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                + リンクを追加
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">事業内容</label>
-              <textarea
-                value={formData.businessContent}
-                onChange={(e) => setFormData({ ...formData, businessContent: e.target.value })}
-                rows={4}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">交換日</label>
-              <input
-                type="date"
-                value={formData.exchangeDate}
-                onChange={(e) => setFormData({ ...formData, exchangeDate: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">メモ</label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
-                placeholder="AIによる解析情報がここに追記されます"
-              />
-            </div>
-
-            <div className="text-right">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white rounded-lg py-2 px-5 hover:bg-blue-700"
-              >
-                保存
-              </button>
+            {/* 画像プレビュー */}
+            <div className="bg-gray-800 p-4 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-400 mb-3">アップロードされた画像</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {uploadedImages.front && (
+                  <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={uploadedImages.front}
+                      alt="表面"
+                      className="w-full rounded-lg"
+                    />
+                  </div>
+                )}
+                {uploadedImages.back && (
+                  <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={uploadedImages.back}
+                      alt="裏面"
+                      className="w-full rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </form>
+        )}
       </div>
+
+      <style jsx>{`
+        .loader {
+          border: 4px solid #4a5568;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
