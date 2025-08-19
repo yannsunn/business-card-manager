@@ -9,12 +9,21 @@ import { BusinessCard } from '@/types';
 import Link from 'next/link';
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
 
-export default function CardDetailPage({ params }: { params: { id: string } }) {
+export default function CardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = useAuth();
   const router = useRouter();
   const [card, setCard] = useState<BusinessCard | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<BusinessCard>({} as BusinessCard);
+  const [cardId, setCardId] = useState<string>('');
+
+  useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params;
+      setCardId(resolvedParams.id);
+    };
+    getParams();
+  }, [params]);
 
   useEffect(() => {
     if (!user) {
@@ -22,9 +31,11 @@ export default function CardDetailPage({ params }: { params: { id: string } }) {
       return;
     }
 
+    if (!cardId || cardId === 'new') return;
+
     const fetchCard = async () => {
       try {
-        const cardDoc = await getDoc(doc(db, 'users', user.uid, 'cards', params.id));
+        const cardDoc = await getDoc(doc(db, 'users', user.uid, 'cards', cardId));
         if (cardDoc.exists()) {
           const cardData = { id: cardDoc.id, ...cardDoc.data() } as BusinessCard;
           setCard(cardData);
@@ -38,10 +49,8 @@ export default function CardDetailPage({ params }: { params: { id: string } }) {
       }
     };
 
-    if (params.id && params.id !== 'new') {
-      fetchCard();
-    }
-  }, [user, params.id, router]);
+    fetchCard();
+  }, [user, cardId, router]);
 
   const handleUpdate = async () => {
     if (!user || !card?.id) return;
