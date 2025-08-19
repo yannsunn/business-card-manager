@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 名刺管理システム
 
-## Getting Started
+Firebase認証とFirestoreデータベースを使用した名刺管理システムです。
 
-First, run the development server:
+## 機能
+
+- 📧 メール/パスワード認証
+- 🔑 Googleソーシャルログイン
+- 📸 名刺画像のアップロード（表・裏）
+- 🤖 AI（Gemini）による名刺情報の自動抽出
+- 📱 QRコード自動読み取り
+- 💾 Firestoreでのデータ管理
+- 🔍 名刺検索機能
+
+## セットアップ
+
+### 1. 依存関係のインストール
+
+```bash
+npm install
+```
+
+### 2. Firebase設定
+
+1. [Firebase Console](https://console.firebase.google.com/)でプロジェクトを作成
+2. Authentication、Firestore、Storageを有効化
+3. Googleログインプロバイダを設定
+4. 承認済みドメインに`localhost`と本番ドメインを追加
+
+### 3. 環境変数の設定
+
+`.env.local`ファイルを作成：
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
+
+# Gemini API Key (サーバーサイド)
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+### 4. Firestoreセキュリティルール
+
+Firebase Consoleで以下のルールを設定：
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+## 開発環境での実行
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 でアプリケーションが起動します。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Vercelへのデプロイ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Vercelにプロジェクトをインポート
 
-## Learn More
+1. [Vercel](https://vercel.com/)にログイン
+2. "New Project"をクリック
+3. GitHubリポジトリをインポート
 
-To learn more about Next.js, take a look at the following resources:
+### 2. 環境変数の設定
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Vercelのプロジェクト設定で以下の環境変数を追加：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID`
+- `GEMINI_API_KEY`
 
-## Deploy on Vercel
+### 3. デプロイ
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+vercel --prod
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+または、GitHubにpushすると自動的にデプロイされます。
+
+## 技術スタック
+
+- **フレームワーク**: Next.js 15 (App Router)
+- **言語**: TypeScript
+- **スタイリング**: Tailwind CSS
+- **認証**: Firebase Authentication
+- **データベース**: Firebase Firestore
+- **ストレージ**: Firebase Storage
+- **AI**: Google Gemini API
+- **QRコード**: jsQR
+- **デプロイ**: Vercel
+
+## ライセンス
+
+MIT
