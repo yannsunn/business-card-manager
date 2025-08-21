@@ -39,6 +39,7 @@ export default function NewCardPage() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // 画像がアップロードされたら自動でAI解析
   useEffect(() => {
@@ -51,7 +52,18 @@ export default function NewCardPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'file' | 'camera') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    await processFiles(Array.from(files));
 
+    // 入力をリセット
+    if (source === 'file' && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (source === 'camera' && cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+  };
+
+  const processFiles = async (files: File[]) => {
     const readFile = (file: File): Promise<string> => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -73,13 +85,31 @@ export default function NewCardPage() {
       setUploadedImages(prev => ({ ...prev, back: base64 }));
       setFormData(prev => ({ ...prev, backImageBase64: base64 }));
     }
+  };
 
-    // 入力をリセット
-    if (source === 'file' && fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    if (source === 'camera' && cameraInputRef.current) {
-      cameraInputRef.current.value = '';
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/')
+    );
+
+    if (files.length > 0) {
+      await processFiles(files);
     }
   };
 
@@ -255,13 +285,27 @@ export default function NewCardPage() {
         {step === 'upload' && (
           <div className="space-y-6">
             {/* メインアップロードエリア */}
-            <div className="bg-gray-800 p-8 rounded-lg">
+            <div 
+              className={`bg-gray-800 p-8 rounded-lg transition-all ${
+                isDragging ? 'ring-4 ring-blue-500 bg-gray-700' : ''
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               {!uploadedImages.front ? (
                 <>
                   <h3 className="text-xl font-semibold text-white mb-6 text-center">
                     名刺の写真を撮影またはアップロード
                   </h3>
                   
+                  {isDragging ? (
+                    <div className="border-4 border-dashed border-blue-500 rounded-lg p-12 text-center">
+                      <Upload size={64} className="mx-auto mb-4 text-blue-400" />
+                      <p className="text-xl text-white font-medium">ここに画像をドロップ</p>
+                      <p className="text-gray-400 mt-2">複数枚の画像を同時にドロップできます</p>
+                    </div>
+                  ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* カメラ撮影 */}
                     <input
@@ -300,9 +344,11 @@ export default function NewCardPage() {
                       <span className="text-sm text-gray-400">複数枚選択可能</span>
                     </button>
                   </div>
+                  )}
 
                   <p className="text-center text-gray-400 mt-6 text-sm">
-                    ※ 名刺の表面（必須）と裏面（任意）をアップロードしてください
+                    ※ 名刺の表面（必須）と裏面（任意）をアップロードしてください<br />
+                    ※ 画像ファイルをドラッグ&ドロップでもアップロード可能です
                   </p>
                 </>
               ) : (
