@@ -7,7 +7,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft, Camera, Upload, Sparkles, X, Check, Edit2 } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Sparkles, X, Check, Edit2, Globe, Loader2 } from 'lucide-react';
 import jsQR from 'jsqr';
 
 export default function NewCardPage() {
@@ -40,6 +40,7 @@ export default function NewCardPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [fetchingUrls, setFetchingUrls] = useState<string[]>([]);
 
   // 画像がアップロードされたら自動でAI解析
   useEffect(() => {
@@ -148,6 +149,39 @@ export default function NewCardPage() {
     });
   };
 
+  const fetchUrlInfo = async (urls: string[]) => {
+    for (const url of urls) {
+      if (!url || fetchingUrls.includes(url)) continue;
+      
+      setFetchingUrls(prev => [...prev, url]);
+      
+      try {
+        const response = await fetch('/api/fetch-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // 取得した情報をnotesに追加
+          setFormData(prev => ({
+            ...prev,
+            businessContent: data.businessContent ? 
+              `${prev.businessContent}\n\n【${url}からの情報】\n${data.businessContent}`.trim() : 
+              prev.businessContent,
+            notes: `${prev.notes}\n\n【${url}の要約】\n${data.summary || 'なし'}\n${data.additionalInfo ? `\n追加情報: ${data.additionalInfo}` : ''}`.trim()
+          }));
+        }
+      } catch (error) {
+        console.error(`URL情報取得エラー (${url}):`, error);
+      } finally {
+        setFetchingUrls(prev => prev.filter(u => u !== url));
+      }
+    }
+  };
+
   const analyzeWithAI = async () => {
     if (!uploadedImages.front) return;
 
@@ -195,6 +229,11 @@ export default function NewCardPage() {
       }));
 
       setStep('review');
+      
+      // URLがある場合は自動的に情報を取得
+      if (combinedUrls.length > 0) {
+        await fetchUrlInfo(combinedUrls);
+      }
     } catch (error) {
       console.error('AI解析エラー:', error);
       alert('画像の解析に失敗しました。手動で入力してください。');
@@ -517,6 +556,62 @@ export default function NewCardPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    URL / ウェブサイト
+                    {fetchingUrls.length > 0 && (
+                      <span className="ml-2 text-blue-400 text-xs">
+                        <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
+                        情報取得中...
+                      </span>
+                    )}
+                  </label>
+                  {formData.urls.map((url, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => handleArrayChange('urls', index, e.target.value)}
+                        onBlur={() => {
+                          if (url && !fetchingUrls.includes(url)) {
+                            fetchUrlInfo([url]);
+                          }
+                        }}
+                        className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                        placeholder="https://example.com"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (url && !fetchingUrls.includes(url)) {
+                            fetchUrlInfo([url]);
+                          }
+                        }}
+                        className="text-blue-400 hover:text-blue-300 px-2"
+                        title="URLから情報を取得"
+                      >
+                        <Globe size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('urls', index)}
+                        className="text-red-400 hover:text-red-300 px-2"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.urls.length < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('urls')}
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      + URLを追加
+                    </button>
+                  )}
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">メールアドレス</label>
                   {formData.emails.map((email, index) => (
                     <div key={index} className="flex gap-2 mb-2">
@@ -576,6 +671,17 @@ export default function NewCardPage() {
                       + 電話番号を追加
                     </button>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">事業内容</label>
+                  <textarea
+                    value={formData.businessContent}
+                    onChange={(e) => setFormData({ ...formData, businessContent: e.target.value })}
+                    rows={2}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                    placeholder="事業内容や取り扱い商品・サービスなど"
+                  />
                 </div>
 
                 <div>
