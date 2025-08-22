@@ -22,7 +22,7 @@ export default function NewCardPage() {
   useEffect(() => {
     console.log('🚀 NewCardPage マウント完了');
     console.log('🚀 初期ステップ:', step);
-  }, []);
+  }, [step]);
   
   useEffect(() => {
     console.log('🚀 ステップが変更されました:', step);
@@ -331,15 +331,16 @@ export default function NewCardPage() {
       await addDoc(collection(db, 'users', user.uid, 'cards'), docData);
       console.log('保存成功');
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
       console.error('保存エラー詳細:', error);
-      console.error('エラーコード:', error.code);
-      console.error('エラーメッセージ:', error.message);
+      console.error('エラーコード:', err.code);
+      console.error('エラーメッセージ:', err.message);
       
-      if (error.code === 'permission-denied') {
+      if (err.code === 'permission-denied') {
         alert('保存権限がありません。Firebaseコンソールでルールを確認してください。');
       } else {
-        alert(`保存に失敗しました: ${error.message}`);
+        alert(`保存に失敗しました: ${err.message || '不明なエラー'}`);
       }
     }
   };
