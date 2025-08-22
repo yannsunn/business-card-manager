@@ -150,8 +150,9 @@ export default function NewCardPage() {
   };
 
   const fetchUrlInfo = async (urls: string[]) => {
-    for (const url of urls) {
-      if (!url || fetchingUrls.includes(url)) continue;
+    // 複数URLを並列で処理
+    const fetchPromises = urls.map(async (url) => {
+      if (!url || fetchingUrls.includes(url)) return null;
       
       setFetchingUrls(prev => [...prev, url]);
       
@@ -164,22 +165,36 @@ export default function NewCardPage() {
         
         if (response.ok) {
           const data = await response.json();
-          
-          // 取得した情報をnotesに追加
-          setFormData(prev => ({
-            ...prev,
-            businessContent: data.businessContent ? 
-              `${prev.businessContent}\n\n【${url}からの情報】\n${data.businessContent}`.trim() : 
-              prev.businessContent,
-            notes: `${prev.notes}\n\n【${url}の要約】\n${data.summary || 'なし'}\n${data.additionalInfo ? `\n追加情報: ${data.additionalInfo}` : ''}`.trim()
-          }));
+          return { url, data };
         }
       } catch (error) {
         console.error(`URL情報取得エラー (${url}):`, error);
       } finally {
         setFetchingUrls(prev => prev.filter(u => u !== url));
       }
-    }
+      return null;
+    });
+
+    // 全てのURLの取得を待つ
+    const results = await Promise.all(fetchPromises);
+    
+    // 取得した情報をまとめて更新
+    setFormData(prev => {
+      let businessContent = prev.businessContent;
+      let notes = prev.notes;
+      
+      results.forEach(result => {
+        if (result) {
+          const { url, data } = result;
+          if (data.businessContent) {
+            businessContent = `${businessContent}\n\n【${url}】\n${data.businessContent}`.trim();
+          }
+          notes = `${notes}\n\n【${url}の要約】\n${data.summary || '情報なし'}\n${data.additionalInfo ? `追加情報: ${data.additionalInfo}` : ''}`.trim();
+        }
+      });
+      
+      return { ...prev, businessContent, notes };
+    });
   };
 
   const analyzeWithAI = async () => {
@@ -556,15 +571,32 @@ export default function NewCardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    URL / ウェブサイト
-                    {fetchingUrls.length > 0 && (
-                      <span className="ml-2 text-blue-400 text-xs">
-                        <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
-                        情報取得中...
-                      </span>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-sm font-medium text-gray-300">
+                      URL / ウェブサイト
+                      {fetchingUrls.length > 0 && (
+                        <span className="ml-2 text-blue-400 text-xs">
+                          <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
+                          {fetchingUrls.length}件取得中...
+                        </span>
+                      )}
+                    </label>
+                    {formData.urls.filter(u => u).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const validUrls = formData.urls.filter(u => u && !fetchingUrls.includes(u));
+                          if (validUrls.length > 0) {
+                            fetchUrlInfo(validUrls);
+                          }
+                        }}
+                        className="bg-blue-600 text-white text-xs rounded px-3 py-1 hover:bg-blue-700 flex items-center gap-1"
+                      >
+                        <Globe size={14} />
+                        全URL情報を一括取得
+                      </button>
                     )}
-                  </label>
+                  </div>
                   {formData.urls.map((url, index) => (
                     <div key={index} className="flex gap-2 mb-2">
                       <input
