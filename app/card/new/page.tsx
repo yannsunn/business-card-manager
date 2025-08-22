@@ -42,13 +42,7 @@ export default function NewCardPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [fetchingUrls, setFetchingUrls] = useState<string[]>([]);
 
-  // 画像がアップロードされたら自動でAI解析
-  useEffect(() => {
-    if (uploadedImages.front && !isAnalyzing && !formData.name) {
-      analyzeWithAI();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedImages.front]);
+  // 自動AI解析を削除（手動で実行するように変更）
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, source: 'file' | 'camera') => {
     const files = e.target.files;
@@ -503,24 +497,35 @@ export default function NewCardPage() {
                     </div>
                   </div>
 
+                  <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4">
+                    <p className="text-gray-200 text-sm">
+                      ✓ 表面画像: {uploadedImages.front ? 'アップロード済み' : '未アップロード'}
+                      <br />
+                      ✓ 裏面画像: {uploadedImages.back ? 'アップロード済み' : '未アップロード（任意）'}
+                    </p>
+                  </div>
+                  
                   <div className="flex gap-4 justify-center">
                     <button
                       onClick={resetAndStartOver}
                       className="bg-gray-600 text-white rounded-lg py-3 px-6 hover:bg-gray-700 transition-colors"
                     >
-                      撮り直す
+                      最初から撮り直す
                     </button>
                     <button
                       onClick={analyzeWithAI}
-                      disabled={isAnalyzing}
+                      disabled={isAnalyzing || !uploadedImages.front}
                       className="bg-indigo-600 text-white rounded-lg py-3 px-8 hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
                     >
                       {isAnalyzing ? (
-                        <>処理中...</>
+                        <>
+                          <Loader2 className="animate-spin" size={20} />
+                          処理中...
+                        </>
                       ) : (
                         <>
                           <Sparkles size={20} />
-                          AIで自動入力
+                          AIで情報を読み取る
                         </>
                       )}
                     </button>

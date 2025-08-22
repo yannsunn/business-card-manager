@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Gemini APIで要約と情報抽出
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -90,6 +90,8 @@ JSONオブジェクトのみを返してください。`
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error for URL fetch:', response.status, errorText);
       throw new Error(`Gemini API error: ${response.status}`);
     }
 
