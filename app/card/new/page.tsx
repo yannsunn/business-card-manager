@@ -17,6 +17,19 @@ export default function NewCardPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<'upload' | 'review'>('upload');
+  
+  // デバッグ用: コンポーネントマウント時とステップ変更時にログ出力
+  useEffect(() => {
+    console.log('🚀 NewCardPage マウント完了');
+    console.log('🚀 初期ステップ:', step);
+  }, []);
+  
+  useEffect(() => {
+    console.log('🚀 ステップが変更されました:', step);
+    if (step === 'review') {
+      console.log('⚠️ reviewステップに移行しました！');
+    }
+  }, [step]);
   const [uploadedImages, setUploadedImages] = useState<{ front: string; back: string }>({
     front: '',
     back: ''
@@ -59,6 +72,9 @@ export default function NewCardPage() {
   };
 
   const processFiles = async (files: File[]) => {
+    console.log('🔍 processFiles開始: ファイル数=', files.length);
+    console.log('🔍 現在のステップ:', step);
+    
     const readFile = (file: File): Promise<string> => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -70,6 +86,7 @@ export default function NewCardPage() {
     // 最初の画像を表面として設定
     if (files[0]) {
       const base64 = await readFile(files[0]);
+      console.log('🔍 表面画像設定完了');
       setUploadedImages(prev => ({ ...prev, front: base64 }));
       setFormData(prev => ({ ...prev, frontImageBase64: base64 }));
     }
@@ -77,9 +94,12 @@ export default function NewCardPage() {
     // 2枚目があれば裏面として設定
     if (files[1]) {
       const base64 = await readFile(files[1]);
+      console.log('🔍 裏面画像設定完了');
       setUploadedImages(prev => ({ ...prev, back: base64 }));
       setFormData(prev => ({ ...prev, backImageBase64: base64 }));
     }
+    
+    console.log('🔍 processFiles終了: ステップは変更なし（uploadのまま）');
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -203,9 +223,14 @@ export default function NewCardPage() {
   };
 
   const analyzeWithAI = async () => {
-    if (!uploadedImages.front) return;
+    console.log('🔍 analyzeWithAI開始');
+    if (!uploadedImages.front) {
+      console.log('🔍 表面画像がないため処理中止');
+      return;
+    }
 
     setIsAnalyzing(true);
+    console.log('🔍 AI解析開始、step を review に変更予定');
 
     try {
       // QRコードスキャン
