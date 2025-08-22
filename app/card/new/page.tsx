@@ -262,13 +262,10 @@ export default function NewCardPage() {
 
       setStep('review');
       
-      // URLがある場合は自動的に情報を取得
+      // URLは手動で取得ボタンを押すまで自動取得しない
       if (combinedUrls.length > 0) {
         console.log('取得したURL一覧:', combinedUrls);
-        // 少し待ってから取得（UIが更新されるのを待つ）
-        setTimeout(async () => {
-          await fetchUrlInfo(combinedUrls);
-        }, 500);
+        console.log('URLの情報を取得するには、各URLの横にあるボタンをクリックしてください');
       }
     } catch (error) {
       console.error('AI解析エラー:', error);
