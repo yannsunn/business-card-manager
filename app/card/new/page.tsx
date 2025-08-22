@@ -764,8 +764,8 @@ export default function NewCardPage() {
                   <textarea
                     value={formData.businessContent}
                     onChange={(e) => setFormData({ ...formData, businessContent: e.target.value })}
-                    rows={2}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                    rows={6}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white resize-y min-h-[150px]"
                     placeholder="事業内容や取り扱い商品・サービスなど"
                   />
                 </div>
@@ -775,8 +775,8 @@ export default function NewCardPage() {
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={3}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                    rows={8}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white resize-y min-h-[200px]"
                     placeholder="その他の情報やメモ"
                   />
                 </div>

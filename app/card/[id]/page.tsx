@@ -239,8 +239,8 @@ export default function CardDetailPage({ params }: { params: Promise<{ id: strin
                 <textarea
                   value={editData.businessContent || ''}
                   onChange={(e) => setEditData({ ...editData, businessContent: e.target.value })}
-                  rows={4}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                  rows={6}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white resize-y min-h-[150px]"
                 />
               </div>
 
@@ -249,8 +249,8 @@ export default function CardDetailPage({ params }: { params: Promise<{ id: strin
                 <textarea
                   value={editData.notes || ''}
                   onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
-                  rows={3}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                  rows={8}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white resize-y min-h-[200px]"
                 />
               </div>
 
