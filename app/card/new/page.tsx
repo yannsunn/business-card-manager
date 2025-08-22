@@ -303,7 +303,15 @@ export default function NewCardPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    console.log('保存処理開始');
+    console.log('現在のユーザー:', user?.uid);
+    
+    if (!user) {
+      console.error('ユーザーが認証されていません');
+      alert('ログインが必要です。');
+      router.push('/auth');
+      return;
+    }
 
     if (!formData.name || !formData.companyName) {
       alert('氏名と会社名は必須項目です。');
@@ -316,12 +324,23 @@ export default function NewCardPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      
+      console.log('保存するデータ:', docData);
+      console.log('保存先パス:', `users/${user.uid}/cards`);
 
       await addDoc(collection(db, 'users', user.uid, 'cards'), docData);
+      console.log('保存成功');
       router.push('/dashboard');
-    } catch (error) {
-      console.error('保存エラー:', error);
-      alert('保存に失敗しました。');
+    } catch (error: any) {
+      console.error('保存エラー詳細:', error);
+      console.error('エラーコード:', error.code);
+      console.error('エラーメッセージ:', error.message);
+      
+      if (error.code === 'permission-denied') {
+        alert('保存権限がありません。Firebaseコンソールでルールを確認してください。');
+      } else {
+        alert(`保存に失敗しました: ${error.message}`);
+      }
     }
   };
 

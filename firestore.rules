@@ -5,5 +5,10 @@ service cloud.firestore {
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    
+    // デバッグ用: 一時的に全ユーザーの読み書きを許可（本番環境では削除すること）
+    // match /{document=**} {
+    //   allow read, write: if request.auth != null;
+    // }
   }
 }
