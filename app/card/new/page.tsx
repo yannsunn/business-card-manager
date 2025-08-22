@@ -26,9 +26,9 @@ export default function NewCardPage() {
     name: '',
     companyName: '',
     title: '',
-    urls: [],
-    emails: [],
-    phones: [],
+    urls: [''],  // 初期状態で1つの空URLフィールドを表示
+    emails: [''],  // 初期状態で1つの空メールフィールドを表示
+    phones: [''],  // 初期状態で1つの空電話番号フィールドを表示
     line_ids: [],
     businessContent: '',
     exchangeDate: new Date().toISOString().split('T')[0],
@@ -186,10 +186,21 @@ export default function NewCardPage() {
       results.forEach(result => {
         if (result) {
           const { url, data } = result;
+          console.log(`URL情報取得完了 - ${url}:`, data);
+          
+          // 事業内容を追加
           if (data.businessContent) {
-            businessContent = `${businessContent}\n\n【${url}】\n${data.businessContent}`.trim();
+            businessContent = businessContent 
+              ? `${businessContent}\n\n【${url}】\n${data.businessContent}`.trim()
+              : `【${url}】\n${data.businessContent}`;
           }
-          notes = `${notes}\n\n【${url}の要約】\n${data.summary || '情報なし'}\n${data.additionalInfo ? `追加情報: ${data.additionalInfo}` : ''}`.trim();
+          
+          // メモに要約を追加
+          const summary = data.summary || '情報を取得できませんでした';
+          const additionalInfo = data.additionalInfo ? `\n追加情報: ${data.additionalInfo}` : '';
+          notes = notes 
+            ? `${notes}\n\n【${url}の要約】\n${summary}${additionalInfo}`.trim()
+            : `【${url}の要約】\n${summary}${additionalInfo}`;
         }
       });
       
@@ -247,7 +258,11 @@ export default function NewCardPage() {
       
       // URLがある場合は自動的に情報を取得
       if (combinedUrls.length > 0) {
-        await fetchUrlInfo(combinedUrls);
+        console.log('取得したURL一覧:', combinedUrls);
+        // 少し待ってから取得（UIが更新されるのを待つ）
+        setTimeout(async () => {
+          await fetchUrlInfo(combinedUrls);
+        }, 500);
       }
     } catch (error) {
       console.error('AI解析エラー:', error);
