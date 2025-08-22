@@ -5,18 +5,20 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json();
+    console.log('URL情報取得リクエスト:', url);
 
     if (!url) {
       return NextResponse.json({ error: 'URLが必要です' }, { status: 400 });
     }
 
-    if (!GEMINI_API_KEY) {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
       console.error('Gemini API key is not configured');
       return NextResponse.json({ 
-        error: 'APIキーが設定されていません',
-        summary: '',
-        extractedInfo: {}
-      }, { status: 500 });
+        success: false,
+        summary: 'APIキーが未設定のため情報を取得できません',
+        businessContent: '',
+        additionalInfo: ''
+      });
     }
 
     // URLからコンテンツを取得

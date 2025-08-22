@@ -217,11 +217,21 @@ export default function NewCardPage() {
       // QRコードスキャン
       const qrUrls: string[] = [];
       const frontQr = await scanQRCode(uploadedImages.front);
-      if (frontQr) qrUrls.push(frontQr);
+      if (frontQr) {
+        console.log('表面QRコード検出:', frontQr);
+        qrUrls.push(frontQr);
+      }
       
       if (uploadedImages.back) {
         const backQr = await scanQRCode(uploadedImages.back);
-        if (backQr) qrUrls.push(backQr);
+        if (backQr) {
+          console.log('裏面QRコード検出:', backQr);
+          qrUrls.push(backQr);
+        }
+      }
+      
+      if (qrUrls.length === 0) {
+        console.log('QRコードは検出されませんでした');
       }
 
       // AI解析APIを呼び出す
@@ -237,9 +247,11 @@ export default function NewCardPage() {
       if (!response.ok) throw new Error('AI解析に失敗しました');
 
       const result = await response.json();
+      console.log('AI解析結果:', result);
       
       // QRコードのURLと解析結果のURLを結合
       const combinedUrls = [...new Set([...qrUrls, ...(result.urls || [])])];
+      console.log('統合されたURL一覧:', combinedUrls);
 
       setFormData(prev => ({
         ...prev,

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const parts = [
       { 
-        text: "この名刺の画像（表と裏）から情報を抽出し、以下のキーを持つJSONオブジェクトとして返してください: name, companyName, title, emails (配列), phones (配列), line_ids (配列), urls (配列), other_info (文字列)。'other_info'キーには、上記のどの項目にも当てはまらないが名刺に記載されている有用な情報（例：キャッチコピー、住所、FAX番号など）をすべて含めてください。情報が見つからない場合は空の文字列または配列にしてください。JSONオブジェクトのみを返してください。" 
+        text: "この名刺の画像（表と裏）から情報を抽出し、以下のキーを持つJSONオブジェクトとして返してください: name（氏名）, companyName（会社名）, title（役職）, emails（メールアドレスの配列）, phones（電話番号の配列）, line_ids（LINE IDの配列）, urls（ウェブサイトURLの配列 - httpやhttpsで始まるURL、またはwwwで始まるドメインを全て含める）, other_info（その他の情報）。特にurls配列には、名刺に記載されているウェブサイト、ホームページ、SNSリンクなど、全てのURL情報を含めてください。QRコードがある場合はその内容も解析してください。情報が見つからない場合は空の文字列または配列にしてください。JSONオブジェクトのみを返してください。" 
       },
       { 
         inlineData: { 
