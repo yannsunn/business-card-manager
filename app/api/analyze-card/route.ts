@@ -10,8 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
     }
 
-    if (!GEMINI_API_KEY) {
-      console.error('Gemini API key is not configured');
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+      console.error('Gemini API key is not configured properly');
+      console.error('Current key:', GEMINI_API_KEY ? 'Set but may be invalid' : 'Not set');
       // デモ用のダミーデータを返す
       return NextResponse.json({
         name: '',
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
         phones: [],
         line_ids: [],
         urls: [],
-        other_info: ''
+        other_info: '',
+        error: 'API設定エラー: Gemini APIキーが正しく設定されていません'
       });
     }
 
@@ -46,8 +48,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    console.log('Calling Gemini API...');
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -62,7 +65,9 @@ export async function POST(request: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
