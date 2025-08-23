@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   
   console.log('Environment check:');

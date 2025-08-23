@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // 環境変数の存在確認
   const hasGeminiKey = !!process.env.GEMINI_API_KEY;
   const keyLength = process.env.GEMINI_API_KEY?.length || 0;
