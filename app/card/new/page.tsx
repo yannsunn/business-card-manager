@@ -264,32 +264,54 @@ export default function NewCardPage() {
   };
 
   const fetchUrlInfo = async (urls: string[]) => {
-    console.log('fetchUrlInfo呼び出し:', urls);
+    console.log('===== fetchUrlInfo開始 =====');
+    console.log('入力URL:', urls);
     
     // モバイルデバッグ用の表示
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      alert(`URL情報取得を開始\nURL: ${urls.join(', ')}`);
-    }
+    console.log('モバイルデバイス:', isMobile);
+    console.log('User Agent:', navigator.userAgent);
     
-    // 有効なURLのみフィルタリング
-    const validUrls = urls.filter(url => url && !fetchingUrls.includes(url));
+    // 有効なURLのみフィルタリング（ボタンテキストを除外）
+    const validUrls = urls.filter(url => {
+      // URLが空でないこと
+      if (!url || !url.trim()) {
+        console.log('空のURLをスキップ:', url);
+        return false;
+      }
+      // URLが "URL情報を取得" というボタンテキストでないこと
+      if (url === 'URL情報を取得' || url === '全URL情報を一括取得') {
+        console.log('ボタンテキストをスキップ:', url);
+        return false;
+      }
+      // すでに取得中でないこと
+      if (fetchingUrls.includes(url)) {
+        console.log('取得中のURLをスキップ:', url);
+        return false;
+      }
+      return true;
+    });
     
     if (validUrls.length === 0) {
       console.log('有効なURLがありません');
       if (isMobile) {
-        alert('有効なURLがありません');
+        alert('有効なURLがありません。URLを入力してください。');
       }
       return;
     }
     
     console.log('有効なURL:', validUrls);
     
+    if (isMobile) {
+      alert(`URL情報取得を開始します\n\n対象URL:\n${validUrls.join('\n')}`);
+    }
+    
     // 複数URLを一括処理する新しいAPIを使用
     if (validUrls.length >= 1) { // 1つ以上の場合はすべて一括処理
       setFetchingUrls(prev => [...prev, ...validUrls]);
       
       try {
+        console.log('API呼び出し中: /api/analyze-urls');
         const response = await fetch('/api/analyze-urls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -298,65 +320,102 @@ export default function NewCardPage() {
           signal: AbortSignal.timeout(30000) // 30秒のタイムアウト
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          console.log('複数URL統合解析結果:', data);
+        console.log('APIレスポンスステータス:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('APIエラー:', errorText);
+          throw new Error(`API Error: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('複数URL統合解析結果:', data);
+        
+        // モバイルデバッグ用の詳細表示
+        if (isMobile) {
+          const successMessage = [
+            'URL情報取得完了',
+            '',
+            `事業内容: ${data.businessContent ? '✓ 取得成功' : '✗ 取得失敗'}`,
+            `要約: ${data.summaries && Object.keys(data.summaries).length > 0 ? '✓ 取得成功' : '✗ 取得失敗'}`,
+            `会社情報: ${data.companyInfo ? '✓ 取得成功' : '✗ 取得失敗'}`
+          ].join('\n');
+          alert(successMessage);
+        }
+        
+        setFormData(prev => {
+          console.log('現在のフォームデータ:', prev);
           
-          // モバイルデバッグ用
-          if (isMobile) {
-            alert(`URL情報取得成功\n事業内容: ${data.businessContent ? '取得あり' : '取得なし'}`);
+          let businessContent = prev.businessContent || '';
+          let notes = prev.notes || '';
+          
+          // 事業内容を更新
+          if (data.businessContent) {
+            businessContent = businessContent 
+              ? `${businessContent}\n\n${data.businessContent}`.trim()
+              : data.businessContent;
+            console.log('事業内容更新:', businessContent);
           }
           
-          setFormData(prev => {
-            const businessContent = data.businessContent || prev.businessContent;
-            let notes = prev.notes;
+          // 各URLの要約をメモに追加
+          if (data.summaries && Object.keys(data.summaries).length > 0) {
+            const summaryText = Object.entries(data.summaries)
+              .map(([url, summary]) => `【${url}】\n${summary}`)
+              .join('\n\n');
             
-            // 各URLの要約をメモに追加
-            if (data.summaries && Object.keys(data.summaries).length > 0) {
-              const summaryText = Object.entries(data.summaries)
-                .map(([url, summary]) => `【${url}】\n${summary}`)
-                .join('\n\n');
-              
-              notes = notes 
-                ? `${notes}\n\n=== URL情報 ===\n${summaryText}`.trim()
-                : `=== URL情報 ===\n${summaryText}`;
-            }
+            const urlInfoSection = `=== URL情報 ===\n${summaryText}`;
+            notes = notes 
+              ? `${notes}\n\n${urlInfoSection}`.trim()
+              : urlInfoSection;
+            console.log('メモ更新（URL情報）:', notes);
+          }
+          
+          // 事業内容もメモに追加（重複を避ける）
+          if (businessContent && !notes.includes('=== 事業内容 ===')) {
+            const businessSection = `=== 事業内容 ===\n${businessContent}`;
+            notes = notes ? `${notes}\n\n${businessSection}`.trim() : businessSection;
+            console.log('メモ更新（事業内容）:', notes);
+          }
+          
+          // 会社情報が取得できた場合、該当フィールドを更新
+          if (data.companyInfo) {
+            const info = data.companyInfo;
+            console.log('会社情報を更新:', info);
             
-            // 事業内容もメモに追加
-            if (businessContent && notes && !notes.includes(businessContent)) {
-              notes = `${notes}\n\n=== 事業内容 ===\n${businessContent}`.trim();
-            } else if (businessContent && !notes) {
-              notes = `=== 事業内容 ===\n${businessContent}`;
-            }
+            const updatedData = {
+              ...prev,
+              companyName: info.companyName || prev.companyName,
+              businessContent,
+              notes,
+              emails: info.email ? [info.email, ...prev.emails.filter((e: string) => e !== info.email)].slice(0, 6) : prev.emails,
+              phones: info.phone ? [info.phone, ...prev.phones.filter((p: string) => p !== info.phone)].slice(0, 6) : prev.phones
+            };
             
-            // 会社情報が取得できた場合、該当フィールドを更新
-            if (data.companyInfo) {
-              const info = data.companyInfo;
-              return {
-                ...prev,
-                companyName: info.companyName || prev.companyName,
-                businessContent,
-                notes,
-                emails: info.email ? [info.email, ...prev.emails.filter((e: string) => e !== info.email)].slice(0, 6) : prev.emails,
-                phones: info.phone ? [info.phone, ...prev.phones.filter((p: string) => p !== info.phone)].slice(0, 6) : prev.phones
-              };
-            }
-            
-            return { ...prev, businessContent, notes };
-          });
-        }
+            console.log('更新後のフォームデータ:', updatedData);
+            return updatedData;
+          }
+          
+          const updatedData = { ...prev, businessContent, notes };
+          console.log('更新後のフォームデータ:', updatedData);
+          return updatedData;
+        });
       } catch (error: any) {
-        console.error('複数URL解析エラー:', error);
-        console.error('エラー詳細:', error.message);
+        console.error('===== URL解析エラー =====');
+        console.error('エラータイプ:', error.name);
+        console.error('エラーメッセージ:', error.message);
+        console.error('スタックトレース:', error.stack);
         
         // ユーザーにエラーを通知
         const errorMessage = error.name === 'AbortError' 
-          ? 'URL情報の取得がタイムアウトしました'
+          ? 'URL情報の取得がタイムアウトしました（30秒）'
           : 'URL情報の取得に失敗しました';
         
-        alert(errorMessage + '\nネットワーク接続を確認してください\n\nエラー詳細: ' + error.message);
+        const fullMessage = `${errorMessage}\n\nエラー詳細:\n${error.message}\n\nネットワーク接続を確認してください`;
+        
+        alert(fullMessage);
       } finally {
         setFetchingUrls(prev => prev.filter(u => !validUrls.includes(u)));
+        console.log('===== fetchUrlInfo終了 =====');
       }
     } 
     // この部分は実行されない（上の条件ですべて処理される）
