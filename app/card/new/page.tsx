@@ -320,6 +320,7 @@ export default function NewCardPage() {
       }
 
       // AI解析APIを呼び出す
+      console.log('画像解析APIを呼び出し中...');
       const response = await fetch('/api/analyze-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -329,10 +330,15 @@ export default function NewCardPage() {
         })
       });
 
-      if (!response.ok) throw new Error('AI解析に失敗しました');
-
       const result = await response.json();
       console.log('AI解析結果:', result);
+      
+      // エラーチェック
+      if (!response.ok || result.error) {
+        console.error('APIエラー:', result);
+        const errorMessage = result.details || result.error || 'AI解析に失敗しました';
+        throw new Error(errorMessage);
+      }
       
       // QRコードのURLと解析結果のURLを結合
       const combinedUrls = [...new Set([...qrUrls, ...(result.urls || [])])];
@@ -358,9 +364,20 @@ export default function NewCardPage() {
         console.log('取得したURL一覧:', combinedUrls);
         console.log('URLの情報を取得するには、各URLの横にあるボタンをクリックしてください');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI解析エラー:', error);
-      alert('画像の解析に失敗しました。手動で入力してください。');
+      console.error('エラー詳細:', error.message);
+      
+      // ユーザー向けのエラーメッセージ
+      let userMessage = '画像の解析に失敗しました。';
+      if (error.message.includes('APIキー')) {
+        userMessage += '\nGemini APIキーの設定を確認してください。';
+      } else if (error.message.includes('利用制限')) {
+        userMessage += '\nAPIの利用制限に達しました。しばらく待ってから再試行してください。';
+      }
+      userMessage += '\n手動で入力してください。';
+      
+      alert(userMessage);
       setStep('review');
       setIsManualEdit(true);
     } finally {

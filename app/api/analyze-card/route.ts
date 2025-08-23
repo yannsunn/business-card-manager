@@ -3,16 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export async function POST(request: NextRequest) {
+  console.log('画像解析APIが呼び出されました');
+  
   try {
     const { frontImage, backImage } = await request.json();
+    console.log('画像データ受信:', { 
+      frontImageLength: frontImage?.length || 0, 
+      backImageLength: backImage?.length || 0 
+    });
 
     if (!frontImage) {
+      console.error('表面画像がありません');
       return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
     }
 
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
       console.error('Gemini API key is not configured properly');
-      console.error('Current key:', GEMINI_API_KEY ? 'Set but may be invalid' : 'Not set');
+      console.error('Current key:', GEMINI_API_KEY ? `Set (length: ${GEMINI_API_KEY.length})` : 'Not set');
+      console.error('Environment:', process.env.NODE_ENV);
       // デモ用のダミーデータを返す
       return NextResponse.json({
         name: '',
@@ -49,25 +57,43 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Calling Gemini API...');
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts
-          }]
-        })
-      }
-    );
+    console.log('API Key length:', GEMINI_API_KEY.length);
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const requestBody = {
+      contents: [{
+        parts
+      }]
+    };
+    
+    console.log('Request body size:', JSON.stringify(requestBody).length);
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      console.error('Gemini API error details:');
+      console.error('Status:', response.status);
+      console.error('Status Text:', response.statusText);
+      console.error('Error Body:', errorText);
+      
+      // エラー内容に基づいた詳細なメッセージ
+      let errorMessage = 'Gemini APIエラー';
+      if (response.status === 400) {
+        errorMessage = 'APIキーが無効です';
+      } else if (response.status === 403) {
+        errorMessage = 'APIキーのアクセス権がありません';
+      } else if (response.status === 429) {
+        errorMessage = 'APIの利用制限に達しました';
+      }
+      
+      throw new Error(`${errorMessage}: ${response.status} - ${errorText.substring(0, 200)}`);
     }
 
     const result = await response.json();
@@ -93,10 +119,18 @@ export async function POST(request: NextRequest) {
         other_info: ''
       });
     }
-  } catch (error) {
-    console.error('AI解析エラー:', error);
+  } catch (error: any) {
+    console.error('AI解析エラー詳細:');
+    console.error('Error type:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
     return NextResponse.json(
-      { error: 'AI解析に失敗しました' },
+      { 
+        error: 'AI解析に失敗しました',
+        details: error.message,
+        type: error.name
+      },
       { status: 500 }
     );
   }
