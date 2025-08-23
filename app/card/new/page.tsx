@@ -735,7 +735,7 @@ export default function NewCardPage() {
                         </span>
                       )}
                     </label>
-                    {formData.urls.filter(u => u).length > 1 && (
+                    {formData.urls.filter(u => u).length > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -747,7 +747,7 @@ export default function NewCardPage() {
                         className="bg-blue-600 text-white text-xs rounded px-3 py-1 hover:bg-blue-700 flex items-center gap-1"
                       >
                         <Globe size={14} />
-                        全URL情報を一括取得
+                        {formData.urls.filter(u => u).length > 1 ? '全URL情報を一括取得' : 'URL情報を取得'}
                       </button>
                     )}
                   </div>
