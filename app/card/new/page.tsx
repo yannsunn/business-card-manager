@@ -177,7 +177,9 @@ export default function NewCardPage() {
         const response = await fetch('/api/analyze-urls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: validUrls })
+          body: JSON.stringify({ urls: validUrls }),
+          // モバイル用にタイムアウトを設定
+          signal: AbortSignal.timeout(30000) // 30秒のタイムアウト
         });
         
         if (response.ok) {
@@ -215,8 +217,15 @@ export default function NewCardPage() {
             return { ...prev, businessContent, notes };
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('複数URL解析エラー:', error);
+        
+        // ユーザーにエラーを通知
+        const errorMessage = error.name === 'AbortError' 
+          ? 'URL情報の取得がタイムアウトしました'
+          : 'URL情報の取得に失敗しました';
+        
+        alert(errorMessage + '\nネットワーク接続を確認してください');
       } finally {
         setFetchingUrls(prev => prev.filter(u => !validUrls.includes(u)));
       }
@@ -229,7 +238,9 @@ export default function NewCardPage() {
         const response = await fetch('/api/fetch-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url }),
+          // モバイル用にタイムアウトを設定
+          signal: AbortSignal.timeout(20000) // 20秒のタイムアウト
         });
         
         if (response.ok) {
@@ -257,8 +268,20 @@ export default function NewCardPage() {
             return { ...prev, businessContent, notes };
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`URL情報取得エラー (${url}):`, error);
+        
+        // ユーザーにエラーを通知
+        const errorMessage = error.name === 'AbortError' 
+          ? `${url} の取得がタイムアウトしました`
+          : `${url} の情報取得に失敗しました`;
+        
+        setFormData(prev => ({
+          ...prev,
+          notes: prev.notes 
+            ? `${prev.notes}\n\n⚠️ ${errorMessage}`
+            : `⚠️ ${errorMessage}`
+        }));
       } finally {
         setFetchingUrls(prev => prev.filter(u => u !== url));
       }

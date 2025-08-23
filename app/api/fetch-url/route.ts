@@ -21,26 +21,40 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // URLからコンテンツを取得
+    // URLからコンテンツを取得（モバイル対応改善）
     let htmlContent = '';
     try {
+      // タイムアウトを設定（モバイルは遅い可能性がある）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒のタイムアウト
+      
       const webResponse = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8'
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (!webResponse.ok) {
         throw new Error(`Failed to fetch URL: ${webResponse.status}`);
       }
       
       htmlContent = await webResponse.text();
-    } catch (fetchError) {
+    } catch (fetchError: any) {
       console.error('URL取得エラー:', fetchError);
+      const errorMessage = fetchError.name === 'AbortError' 
+        ? 'タイムアウト: URLの取得に時間がかかりすぎました'
+        : 'URLからの情報取得に失敗しました';
+      
       return NextResponse.json({ 
-        error: 'URLからの情報取得に失敗しました',
+        error: errorMessage,
         summary: '',
-        extractedInfo: {}
+        extractedInfo: {},
+        details: fetchError.message
       }, { status: 400 });
     }
 

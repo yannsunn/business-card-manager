@@ -4,12 +4,20 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 async function fetchUrlContent(url: string): Promise<string> {
   try {
+    // モバイル対応のタイムアウト設定
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒のタイムアウト
+    
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8'
       },
-      signal: AbortSignal.timeout(10000) // 10秒のタイムアウト
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch: ${response.status}`);
@@ -25,8 +33,10 @@ async function fetchUrlContent(url: string): Promise<string> {
       .replace(/\s+/g, ' ')
       .trim()
       .substring(0, 5000); // 各URLごとに5000文字に制限
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Failed to fetch ${url}:`, error);
+    console.error('Error type:', error.name);
+    console.error('Error message:', error.message);
     return '';
   }
 }
