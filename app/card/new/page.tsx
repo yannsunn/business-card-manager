@@ -401,25 +401,26 @@ export default function NewCardPage() {
       alert('名刺を保存しました！');
       router.push('/dashboard');
     } catch (error) {
+      const err = error as any;
       console.error('===== 保存エラー =====');
       console.error('エラーオブジェクト:', error);
-      console.error('エラーコード:', error?.code);
-      console.error('エラーメッセージ:', error?.message);
-      console.error('スタックトレース:', error?.stack);
+      console.error('エラーコード:', err?.code);
+      console.error('エラーメッセージ:', err?.message);
+      console.error('スタックトレース:', err?.stack);
       
       // エラーの種類に応じた処理
-      if (error?.code === 'permission-denied') {
+      if (err?.code === 'permission-denied') {
         console.error('権限エラー: Firestore Rulesを確認してください');
         alert(`保存権限がありません。\n\nFirebaseコンソールで以下を確認してください：\n1. Firestore Rulesが正しく設定されているか\n2. ユーザーが正しく認証されているか\n\nユーザーID: ${user.uid}`);
-      } else if (error?.code === 'unavailable') {
+      } else if (err?.code === 'unavailable') {
         console.error('接続エラー: Firestoreに接続できません');
         alert('サーバーに接続できません。\nインターネット接続を確認してください。');
-      } else if (error?.code === 'unauthenticated') {
+      } else if (err?.code === 'unauthenticated') {
         console.error('認証エラー: ユーザーが認証されていません');
         alert('認証が切れました。再度ログインしてください。');
         router.push('/auth');
       } else {
-        alert(`保存に失敗しました。\n\nエラー内容: ${error?.message || '不明なエラー'}\n\n詳細はコンソールを確認してください。`);
+        alert(`保存に失敗しました。\n\nエラー内容: ${err?.message || '不明なエラー'}\n\n詳細はコンソールを確認してください。`);
       }
     }
   };

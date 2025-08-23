@@ -72,11 +72,12 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error('Firestoreテストエラー:', error);
+    const err = error as any;
     return NextResponse.json({
       success: false,
-      error: error.message || 'Firestore接続テストに失敗しました',
-      code: error.code,
-      details: error.details || null
+      error: err?.message || 'Firestore接続テストに失敗しました',
+      code: err?.code,
+      details: err?.details || null
     }, { status: 500 });
   }
 }
@@ -111,10 +112,11 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Firestore書き込みエラー:', error);
+    const err = error as any;
     return NextResponse.json({
       success: false,
-      error: error.message || 'Firestore書き込みに失敗しました',
-      code: error.code
+      error: err?.message || 'Firestore書き込みに失敗しました',
+      code: err?.code
     }, { status: 500 });
   }
 }
