@@ -31,8 +31,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('Auth状態変更:', user ? `ユーザー: ${user.uid}` : 'ログアウト');
       setUser(user);
       setLoading(false);
+      
+      // 認証状態の詳細ログ
+      if (user) {
+        console.log('認証済みユーザー情報:', {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          provider: user.providerData[0]?.providerId
+        });
+      }
     });
 
     return unsubscribe;

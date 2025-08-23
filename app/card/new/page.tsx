@@ -346,44 +346,80 @@ export default function NewCardPage() {
   };
 
   const handleSubmit = async () => {
-    console.log('保存処理開始');
+    console.log('===== 保存処理開始 =====');
     console.log('現在のユーザー:', user?.uid);
+    console.log('認証状態:', !!user);
     
-    if (!user) {
+    // 認証チェック
+    if (!user || !user.uid) {
       console.error('ユーザーが認証されていません');
-      alert('ログインが必要です。');
+      console.error('User object:', user);
+      alert('ログインが必要です。ログイン画面に移動します。');
       router.push('/auth');
       return;
     }
 
+    // 必須項目チェック
     if (!formData.name || !formData.companyName) {
       alert('氏名と会社名は必須項目です。');
       return;
     }
 
+    // 保存処理
     try {
+      // データの準備
       const docData = {
         ...formData,
+        // 空配列を除外
+        urls: formData.urls.filter(url => url && url.trim()),
+        emails: formData.emails.filter(email => email && email.trim()),
+        phones: formData.phones.filter(phone => phone && phone.trim()),
+        line_ids: formData.line_ids.filter(id => id && id.trim()),
+        // タイムスタンプ
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        // ユーザーID
+        userId: user.uid
       };
       
-      console.log('保存するデータ:', docData);
+      console.log('保存するデータ:', JSON.stringify(docData, null, 2));
       console.log('保存先パス:', `users/${user.uid}/cards`);
-
-      await addDoc(collection(db, 'users', user.uid, 'cards'), docData);
-      console.log('保存成功');
+      console.log('Firestore接続確認中...');
+      
+      // Firestore接続確認
+      const testCollection = collection(db, 'users', user.uid, 'cards');
+      console.log('コレクション参照作成成功:', testCollection);
+      
+      // データ保存
+      console.log('addDoc実行中...');
+      const docRef = await addDoc(testCollection, docData);
+      
+      console.log('===== 保存成功 =====');
+      console.log('Document ID:', docRef.id);
+      console.log('Document Path:', docRef.path);
+      
+      alert('名刺を保存しました！');
       router.push('/dashboard');
     } catch (error) {
-      const err = error as { code?: string; message?: string };
-      console.error('保存エラー詳細:', error);
-      console.error('エラーコード:', err.code);
-      console.error('エラーメッセージ:', err.message);
+      console.error('===== 保存エラー =====');
+      console.error('エラーオブジェクト:', error);
+      console.error('エラーコード:', error?.code);
+      console.error('エラーメッセージ:', error?.message);
+      console.error('スタックトレース:', error?.stack);
       
-      if (err.code === 'permission-denied') {
-        alert('保存権限がありません。Firebaseコンソールでルールを確認してください。');
+      // エラーの種類に応じた処理
+      if (error?.code === 'permission-denied') {
+        console.error('権限エラー: Firestore Rulesを確認してください');
+        alert(`保存権限がありません。\n\nFirebaseコンソールで以下を確認してください：\n1. Firestore Rulesが正しく設定されているか\n2. ユーザーが正しく認証されているか\n\nユーザーID: ${user.uid}`);
+      } else if (error?.code === 'unavailable') {
+        console.error('接続エラー: Firestoreに接続できません');
+        alert('サーバーに接続できません。\nインターネット接続を確認してください。');
+      } else if (error?.code === 'unauthenticated') {
+        console.error('認証エラー: ユーザーが認証されていません');
+        alert('認証が切れました。再度ログインしてください。');
+        router.push('/auth');
       } else {
-        alert(`保存に失敗しました: ${err.message || '不明なエラー'}`);
+        alert(`保存に失敗しました。\n\nエラー内容: ${error?.message || '不明なエラー'}\n\n詳細はコンソールを確認してください。`);
       }
     }
   };
