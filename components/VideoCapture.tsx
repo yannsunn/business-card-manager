@@ -17,11 +17,13 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
   }>({ front: null, back: null });
   const [processingVideo, setProcessingVideo] = useState(false);
   const [instruction, setInstruction] = useState('表面を撮影してください');
+  const [recordingTime, setRecordingTime] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // カメラを起動
   const startCamera = useCallback(async () => {
@@ -49,6 +51,8 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
     if (!streamRef.current) return;
 
     chunksRef.current = [];
+    setRecordingTime(0);
+    
     const mediaRecorder = new MediaRecorder(streamRef.current, {
       mimeType: 'video/webm'
     });
@@ -69,26 +73,35 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
     setIsRecording(true);
     setInstruction('表面を撮影中... 3秒後に裏面を撮影してください');
 
-    // 6秒後に自動停止
-    setTimeout(() => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    // タイマー開始
+    let time = 0;
+    timerRef.current = setInterval(() => {
+      time += 1;
+      setRecordingTime(time);
+      
+      if (time === 3) {
+        setInstruction('裏面を撮影してください');
+      }
+      
+      if (time >= 6) {
         stopRecording();
       }
-    }, 6000);
-
-    // 3秒後に裏面の指示
-    setTimeout(() => {
-      setInstruction('裏面を撮影してください');
-    }, 3000);
+    }, 1000);
   }, []);
 
   // 録画停止
   const stopRecording = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setHasRecorded(true);
       setInstruction('動画を処理中...');
+      setRecordingTime(0);
     }
   }, []);
 
@@ -234,9 +247,14 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
 
         {/* 録画インジケーター */}
         {isRecording && (
-          <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            <span className="text-sm">録画中</span>
+          <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+            <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span className="text-sm">録画中</span>
+            </div>
+            <div className="bg-black bg-opacity-50 text-white px-3 py-1 rounded-full">
+              <span className="text-lg font-mono">{recordingTime}/6秒</span>
+            </div>
           </div>
         )}
       </div>
@@ -245,18 +263,23 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       <div className="bg-gray-900 p-4">
         {!hasRecorded ? (
           <div className="flex justify-center gap-4">
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`${
-                isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
-              } text-white rounded-full p-4 transition-colors`}
-            >
-              {isRecording ? (
-                <div className="w-6 h-6 bg-white rounded"></div>
-              ) : (
+            {!isRecording ? (
+              <button
+                onClick={startRecording}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 transition-colors flex items-center gap-2"
+              >
                 <Video size={24} />
-              )}
-            </button>
+                <span className="ml-2">録画開始</span>
+              </button>
+            ) : (
+              <button
+                onClick={stopRecording}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full p-4 transition-colors flex items-center gap-2 animate-pulse"
+              >
+                <div className="w-6 h-6 bg-white rounded"></div>
+                <span className="ml-2">録画停止</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex justify-center gap-4">
