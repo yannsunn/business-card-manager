@@ -264,13 +264,20 @@ export default function NewCardPage() {
   };
 
   const fetchUrlInfo = async (urls: string[]) => {
+    console.log('fetchUrlInfo呼び出し:', urls);
+    
     // 有効なURLのみフィルタリング
     const validUrls = urls.filter(url => url && !fetchingUrls.includes(url));
     
-    if (validUrls.length === 0) return;
+    if (validUrls.length === 0) {
+      console.log('有効なURLがありません');
+      return;
+    }
+    
+    console.log('有効なURL:', validUrls);
     
     // 複数URLを一括処理する新しいAPIを使用
-    if (validUrls.length > 1) {
+    if (validUrls.length >= 1) { // 1つ以上の場合はすべて一括処理
       setFetchingUrls(prev => [...prev, ...validUrls]);
       
       try {
@@ -301,6 +308,13 @@ export default function NewCardPage() {
                 : `=== URL情報 ===\n${summaryText}`;
             }
             
+            // 事業内容もメモに追加
+            if (businessContent && !notes.includes(businessContent)) {
+              notes = notes
+                ? `${notes}\n\n=== 事業内容 ===\n${businessContent}`.trim()
+                : `=== 事業内容 ===\n${businessContent}`;
+            }
+            
             // 会社情報が取得できた場合、該当フィールドを更新
             if (data.companyInfo) {
               const info = data.companyInfo;
@@ -319,6 +333,7 @@ export default function NewCardPage() {
         }
       } catch (error: any) {
         console.error('複数URL解析エラー:', error);
+        console.error('エラー詳細:', error.message);
         
         // ユーザーにエラーを通知
         const errorMessage = error.name === 'AbortError' 
@@ -329,8 +344,9 @@ export default function NewCardPage() {
       } finally {
         setFetchingUrls(prev => prev.filter(u => !validUrls.includes(u)));
       }
-    } else if (validUrls.length === 1) {
-      // 単一URLの場合は従来のAPIを使用
+    } 
+    // この部分は実行されない（上の条件ですべて処理される）
+    else if (false) { // 単一URLの処理も上で統合されたため無効化
       const url = validUrls[0];
       setFetchingUrls(prev => [...prev, url]);
       

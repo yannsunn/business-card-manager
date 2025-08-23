@@ -207,6 +207,35 @@ export default function CardDetailPage({ params }: { params: Promise<{ id: strin
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">ウェブサイト</label>
+                {editData.urls?.map((url, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => handleArrayChange('urls', index, e.target.value)}
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                      placeholder="https://example.com"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeArrayItem('urls', index)}
+                      className="text-red-400 hover:text-red-300 px-2"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addArrayItem('urls')}
+                  className="text-sm text-blue-400 hover:text-blue-300"
+                >
+                  + URLを追加
+                </button>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">電話番号</label>
                 {editData.phones?.map((phone, index) => (
                   <div key={index} className="flex gap-2 mb-2">
