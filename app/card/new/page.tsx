@@ -266,11 +266,20 @@ export default function NewCardPage() {
   const fetchUrlInfo = async (urls: string[]) => {
     console.log('fetchUrlInfo呼び出し:', urls);
     
+    // モバイルデバッグ用の表示
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      alert(`URL情報取得を開始\nURL: ${urls.join(', ')}`);
+    }
+    
     // 有効なURLのみフィルタリング
     const validUrls = urls.filter(url => url && !fetchingUrls.includes(url));
     
     if (validUrls.length === 0) {
       console.log('有効なURLがありません');
+      if (isMobile) {
+        alert('有効なURLがありません');
+      }
       return;
     }
     
@@ -292,6 +301,11 @@ export default function NewCardPage() {
         if (response.ok) {
           const data = await response.json();
           console.log('複数URL統合解析結果:', data);
+          
+          // モバイルデバッグ用
+          if (isMobile) {
+            alert(`URL情報取得成功\n事業内容: ${data.businessContent ? '取得あり' : '取得なし'}`);
+          }
           
           setFormData(prev => {
             const businessContent = data.businessContent || prev.businessContent;
@@ -340,7 +354,7 @@ export default function NewCardPage() {
           ? 'URL情報の取得がタイムアウトしました'
           : 'URL情報の取得に失敗しました';
         
-        alert(errorMessage + '\nネットワーク接続を確認してください');
+        alert(errorMessage + '\nネットワーク接続を確認してください\n\nエラー詳細: ' + error.message);
       } finally {
         setFetchingUrls(prev => prev.filter(u => !validUrls.includes(u)));
       }
@@ -897,12 +911,17 @@ export default function NewCardPage() {
                       <button
                         type="button"
                         onClick={() => {
+                          console.log('URL情報取得ボタンがクリックされました');
                           const validUrls = formData.urls.filter(u => u && !fetchingUrls.includes(u));
+                          console.log('有効URL:', validUrls);
                           if (validUrls.length > 0) {
                             fetchUrlInfo(validUrls);
+                          } else {
+                            alert('URLを入力してください');
                           }
                         }}
-                        className="bg-blue-600 text-white text-xs rounded px-3 py-1 hover:bg-blue-700 flex items-center gap-1"
+                        disabled={fetchingUrls.length > 0}
+                        className="bg-blue-600 text-white text-xs rounded px-3 py-1 hover:bg-blue-700 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Globe size={14} />
                         {formData.urls.filter(u => u).length > 1 ? '全URL情報を一括取得' : 'URL情報を取得'}
@@ -926,11 +945,18 @@ export default function NewCardPage() {
                       <button
                         type="button"
                         onClick={() => {
+                          console.log('個別URLボタンクリック:', url);
                           if (url && !fetchingUrls.includes(url)) {
+                            console.log('fetchUrlInfoを呼び出します:', url);
                             fetchUrlInfo([url]);
+                          } else {
+                            console.log('URLが空または取得中:', url, fetchingUrls);
+                            if (!url) alert('URLを入力してください');
+                            if (fetchingUrls.includes(url)) alert('このURLは現在取得中です');
                           }
                         }}
-                        className="text-blue-400 hover:text-blue-300 px-2"
+                        disabled={!url || fetchingUrls.includes(url)}
+                        className="text-blue-400 hover:text-blue-300 px-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="URLから情報を取得"
                       >
                         <Globe size={20} />
