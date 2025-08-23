@@ -7,8 +7,14 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft, Camera, Upload, Sparkles, X, Check, Edit2, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Sparkles, X, Check, Edit2, Globe, Loader2, Video } from 'lucide-react';
 import jsQR from 'jsqr';
+import dynamic from 'next/dynamic';
+
+// 動的インポート（クライアントサイドのみ）
+const VideoCapture = dynamic(() => import('@/components/VideoCapture'), {
+  ssr: false
+});
 
 export default function NewCardPage() {
   const { user } = useAuth();
@@ -17,6 +23,7 @@ export default function NewCardPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<'upload' | 'review'>('upload');
+  const [showVideoCapture, setShowVideoCapture] = useState(false);
   
   // デバッグ用: コンポーネントマウント時とステップ変更時にログ出力
   useEffect(() => {
@@ -465,9 +472,29 @@ export default function NewCardPage() {
     setIsManualEdit(false);
   };
 
+  // 動画キャプチャ完了時の処理
+  const handleVideoCaptureComplete = (frontImage: string, backImage: string) => {
+    setUploadedImages({ front: frontImage, back: backImage });
+    setFormData(prev => ({
+      ...prev,
+      frontImageBase64: frontImage,
+      backImageBase64: backImage
+    }));
+    setShowVideoCapture(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-200">
-      <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+    <>
+      {/* 動画キャプチャモーダル */}
+      {showVideoCapture && (
+        <VideoCapture
+          onCaptureComplete={handleVideoCaptureComplete}
+          onCancel={() => setShowVideoCapture(false)}
+        />
+      )}
+      
+      <div className="min-h-screen bg-gray-900 text-gray-200">
+        <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
         <header className="mb-4 sm:mb-6 flex justify-between items-center">
           <h2 className="text-2xl sm:text-3xl font-bold text-white">名刺を追加</h2>
           <Link
@@ -503,7 +530,17 @@ export default function NewCardPage() {
                       <p className="text-gray-400 mt-2">複数枚の画像を同時にドロップできます</p>
                     </div>
                   ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* 動画撮影 */}
+                    <button
+                      onClick={() => setShowVideoCapture(true)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-6 sm:p-8 flex flex-col items-center justify-center gap-2 sm:gap-4 transition-colors"
+                    >
+                      <Video size={36} className="sm:w-12 sm:h-12" />
+                      <span className="text-base sm:text-lg font-medium">動画で撮影</span>
+                      <span className="text-xs sm:text-sm text-purple-200">表裏を1回で</span>
+                    </button>
+
                     {/* カメラ撮影 */}
                     <input
                       ref={cameraInputRef}
@@ -516,11 +553,11 @@ export default function NewCardPage() {
                     />
                     <button
                       onClick={() => cameraInputRef.current?.click()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-colors"
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-6 sm:p-8 flex flex-col items-center justify-center gap-2 sm:gap-4 transition-colors"
                     >
-                      <Camera size={48} />
-                      <span className="text-lg font-medium">カメラで撮影</span>
-                      <span className="text-sm text-blue-200">表・裏を続けて撮影可能</span>
+                      <Camera size={36} className="sm:w-12 sm:h-12" />
+                      <span className="text-base sm:text-lg font-medium">写真撮影</span>
+                      <span className="text-xs sm:text-sm text-blue-200">個別に撮影</span>
                     </button>
 
                     {/* ファイルアップロード */}
@@ -534,11 +571,11 @@ export default function NewCardPage() {
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg p-8 flex flex-col items-center justify-center gap-4 transition-colors"
+                      className="bg-gray-700 hover:bg-gray-600 text-white rounded-lg p-6 sm:p-8 flex flex-col items-center justify-center gap-2 sm:gap-4 transition-colors"
                     >
-                      <Upload size={48} />
-                      <span className="text-lg font-medium">画像を選択</span>
-                      <span className="text-sm text-gray-400">複数枚選択可能</span>
+                      <Upload size={36} className="sm:w-12 sm:h-12" />
+                      <span className="text-base sm:text-lg font-medium">ファイル選択</span>
+                      <span className="text-xs sm:text-sm text-gray-400">複数枚可能</span>
                     </button>
                   </div>
                   )}
@@ -927,9 +964,9 @@ export default function NewCardPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
 
-      <style jsx>{`
+        <style jsx>{`
         .loader {
           border: 4px solid #4a5568;
           border-top: 4px solid #3498db;
@@ -942,7 +979,8 @@ export default function NewCardPage() {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-      `}</style>
-    </div>
+        `}</style>
+      </div>
+    </>
   );
 }
