@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Vercelの環境変数を明示的に取得
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env['GEMINI_API_KEY'];
 
 // 環境変数チェック用ログ
 console.log('⭐ GEMINI_API_KEY 状態チェック:');
@@ -9,6 +10,7 @@ console.log('  - 長さ:', GEMINI_API_KEY?.length || 0);
 console.log('  - プレフィックス:', GEMINI_API_KEY?.substring(0, 7));
 console.log('  - NODE_ENV:', process.env.NODE_ENV);
 console.log('  - VERCEL_ENV:', process.env.VERCEL_ENV);
+console.log('  - 全環境変数キー:', Object.keys(process.env).filter(k => k.includes('GEMINI')).join(', '));
 
 export async function POST(request: NextRequest) {
   console.log('画像解析APIが呼び出されました');
