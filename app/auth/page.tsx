@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -31,11 +32,37 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     try {
+      console.log('Google認証開始...');
+      console.log('現在のドメイン:', window.location.hostname);
+      console.log('Firebase Auth Domain:', auth.app.options.authDomain);
+      console.log('Firebase Project ID:', auth.app.options.projectId);
+      
       await signInWithGoogle();
+      console.log('Google認証成功');
       router.push('/dashboard');
-    } catch (error) {
-      const err = error as { code?: string };
-      setError(getErrorMessage(err.code || 'unknown'));
+    } catch (error: any) {
+      console.error('Googleログインエラー:', error);
+      console.error('エラーコード:', error?.code);
+      console.error('エラーメッセージ:', error?.message);
+      
+      // エラーメッセージの詳細化
+      let errorMessage = 'Googleログインに失敗しました。';
+      
+      if (error?.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'ログインがキャンセルされました。';
+      } else if (error?.code === 'auth/popup-blocked') {
+        errorMessage = 'ポップアップがブロックされました。ブラウザの設定を確認してください。';
+      } else if (error?.code === 'auth/unauthorized-domain') {
+        errorMessage = `このドメイン(${window.location.hostname})は承認されていません。Firebase Consoleで承認済みドメインを追加してください。`;
+      } else if (error?.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Google認証が有効になっていません。Firebase Consoleで有効化してください。';
+      } else if (error?.code === 'auth/invalid-api-key') {
+        errorMessage = 'APIキーが無効です。Firebase設定を確認してください。';
+      } else if (error?.message) {
+        errorMessage += ` 詳細: ${error.message}`;
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -64,7 +91,9 @@ export default function AuthPage() {
         </h2>
         
         {error && (
-          <div className="text-red-400 text-sm mb-4 text-center">{error}</div>
+          <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded-lg mb-4">
+            <p className="text-sm">{error}</p>
+          </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
