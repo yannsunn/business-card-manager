@@ -88,9 +88,9 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_EMULAT
       connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
       connectFirestoreEmulator(db, 'localhost', 8080);
       console.log('Firebase Emulatorsに接続しました');
-    } catch (error) {
+    } catch (error: any) {
       // 既に接続されている場合はエラーを無視
-      if (!error.message.includes('already been called')) {
+      if (!error?.message?.includes('already been called')) {
         console.error('Emulator接続エラー:', error);
       }
     }
