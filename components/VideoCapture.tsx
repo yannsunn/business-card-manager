@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
-import { Camera, Video, Check, RotateCcw, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Camera, Video, Check, RotateCcw, AlertCircle, Square } from 'lucide-react';
 
 interface VideoCaptureProps {
   onCaptureComplete: (frontImage: string, backImage: string) => void;
@@ -16,7 +16,7 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
     back: string | null;
   }>({ front: null, back: null });
   const [processingVideo, setProcessingVideo] = useState(false);
-  const [instruction, setInstruction] = useState('表面を撮影してください');
+  const [instruction, setInstruction] = useState('録画ボタンを押して開始');
   const [recordingTime, setRecordingTime] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -26,11 +26,11 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // カメラを起動
-  const startCamera = useCallback(async () => {
+  const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // 背面カメラを使用
+          facingMode: 'environment',
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         }
@@ -42,68 +42,84 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       streamRef.current = stream;
     } catch (error) {
       console.error('カメラの起動に失敗しました:', error);
-      alert('カメラへのアクセスが拒否されました。');
+      alert('カメラへのアクセスが拒否されました。ブラウザの設定を確認してください。');
     }
-  }, []);
+  };
 
   // 録画開始
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
+  const startRecording = () => {
+    if (!streamRef.current) {
+      alert('カメラが起動していません');
+      return;
+    }
 
     chunksRef.current = [];
     setRecordingTime(0);
     
-    const mediaRecorder = new MediaRecorder(streamRef.current, {
-      mimeType: 'video/webm'
-    });
+    try {
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType: 'video/webm;codecs=vp8,opus'
+      });
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data);
-      }
-    };
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
 
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      await processVideo(blob);
-    };
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        await processVideo(blob);
+      };
 
-    mediaRecorderRef.current = mediaRecorder;
-    mediaRecorder.start();
-    setIsRecording(true);
-    setInstruction('表面を撮影中... 3秒後に裏面を撮影してください');
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(100); // 100msごとにデータを取得
+      setIsRecording(true);
+      setInstruction('表面を撮影中... (3秒間)');
 
-    // タイマー開始
-    let time = 0;
-    timerRef.current = setInterval(() => {
-      time += 1;
-      setRecordingTime(time);
-      
-      if (time === 3) {
-        setInstruction('裏面を撮影してください');
-      }
-      
-      if (time >= 6) {
-        stopRecording();
-      }
-    }, 1000);
-  }, []);
+      // タイマー開始
+      let time = 0;
+      timerRef.current = setInterval(() => {
+        time += 1;
+        setRecordingTime(time);
+        
+        if (time === 3) {
+          setInstruction('裏面を撮影中... (3秒間)');
+        }
+        
+        if (time >= 6) {
+          stopRecording();
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('録画開始エラー:', error);
+      alert('録画を開始できませんでした');
+    }
+  };
 
   // 録画停止
-  const stopRecording = useCallback(() => {
+  const stopRecording = () => {
+    console.log('停止ボタンが押されました');
+    
+    // タイマーをクリア
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setHasRecorded(true);
-      setInstruction('動画を処理中...');
-      setRecordingTime(0);
+    // 録画を停止
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        setHasRecorded(true);
+        setInstruction('動画を処理中...');
+        setRecordingTime(0);
+      } catch (error) {
+        console.error('録画停止エラー:', error);
+      }
     }
-  }, []);
+  };
 
   // 動画から静止画を抽出
   const processVideo = async (videoBlob: Blob) => {
@@ -113,6 +129,7 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       const videoUrl = URL.createObjectURL(videoBlob);
       const video = document.createElement('video');
       video.src = videoUrl;
+      video.muted = true;
       
       await new Promise((resolve) => {
         video.onloadedmetadata = () => {
@@ -129,13 +146,13 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       canvas.height = video.videoHeight;
 
       // 表面の画像を抽出（1.5秒時点）
-      video.currentTime = 1.5;
+      video.currentTime = Math.min(1.5, video.duration * 0.25);
       await new Promise(resolve => video.onseeked = resolve);
       ctx.drawImage(video, 0, 0);
       const frontImage = canvas.toDataURL('image/jpeg', 0.95);
 
       // 裏面の画像を抽出（4.5秒時点）
-      video.currentTime = 4.5;
+      video.currentTime = Math.min(4.5, video.duration * 0.75);
       await new Promise(resolve => video.onseeked = resolve);
       ctx.drawImage(video, 0, 0);
       const backImage = canvas.toDataURL('image/jpeg', 0.95);
@@ -147,25 +164,24 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       URL.revokeObjectURL(videoUrl);
       video.remove();
       canvas.remove();
-      
-      // 動画Blobもクリア（メモリ解放）
       chunksRef.current = [];
       
     } catch (error) {
       console.error('動画処理エラー:', error);
-      alert('動画の処理に失敗しました。');
+      alert('動画の処理に失敗しました。もう一度お試しください。');
+      handleReset();
     } finally {
       setProcessingVideo(false);
     }
   };
 
   // カメラ停止
-  const stopCamera = useCallback(() => {
+  const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-  }, []);
+  };
 
   // 完了処理
   const handleComplete = () => {
@@ -179,40 +195,54 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
   const handleReset = () => {
     setHasRecorded(false);
     setExtractedImages({ front: null, back: null });
-    setInstruction('表面を撮影してください');
+    setInstruction('録画ボタンを押して開始');
+    setRecordingTime(0);
     chunksRef.current = [];
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     startCamera();
   };
 
+  // キャンセル処理
+  const handleCancel = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    stopCamera();
+    onCancel();
+  };
+
   // コンポーネントマウント時
-  React.useEffect(() => {
+  useEffect(() => {
     startCamera();
     return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
       stopCamera();
     };
-  }, [startCamera, stopCamera]);
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* ヘッダー */}
-      <div className="bg-gray-900 p-4 text-white">
+      <div className="bg-gray-900 p-3 sm:p-4 text-white">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">動画で名刺を撮影</h3>
+          <h3 className="text-base sm:text-lg font-semibold">動画で名刺を撮影</h3>
           <button
-            onClick={() => {
-              stopCamera();
-              onCancel();
-            }}
-            className="text-gray-400 hover:text-white"
+            onClick={handleCancel}
+            className="text-gray-400 hover:text-white text-2xl px-2"
           >
             ✕
           </button>
         </div>
-        <p className="text-sm text-gray-400 mt-2">{instruction}</p>
+        <p className="text-xs sm:text-sm text-gray-400 mt-1">{instruction}</p>
       </div>
 
       {/* ビデオプレビュー */}
-      <div className="flex-1 relative bg-black">
+      <div className="flex-1 relative bg-black overflow-hidden">
         {!hasRecorded ? (
           <video
             ref={videoRef}
@@ -230,13 +260,13 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
               </div>
             ) : extractedImages.front && extractedImages.back ? (
               <div className="w-full max-w-2xl">
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-4">
                   <div>
-                    <p className="text-white text-sm mb-2">表面</p>
+                    <p className="text-white text-xs sm:text-sm mb-1 sm:mb-2">表面</p>
                     <img src={extractedImages.front} alt="表面" className="w-full rounded" />
                   </div>
                   <div>
-                    <p className="text-white text-sm mb-2">裏面</p>
+                    <p className="text-white text-xs sm:text-sm mb-1 sm:mb-2">裏面</p>
                     <img src={extractedImages.back} alt="裏面" className="w-full rounded" />
                   </div>
                 </div>
@@ -247,13 +277,13 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
 
         {/* 録画インジケーター */}
         {isRecording && (
-          <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
-            <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
+          <div className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-center">
+            <div className="flex items-center gap-2 bg-red-600 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              <span className="text-sm">録画中</span>
+              <span>録画中</span>
             </div>
-            <div className="bg-black bg-opacity-50 text-white px-3 py-1 rounded-full">
-              <span className="text-lg font-mono">{recordingTime}/6秒</span>
+            <div className="bg-black bg-opacity-50 text-white px-2 sm:px-3 py-1 rounded-full">
+              <span className="text-sm sm:text-lg font-mono">{recordingTime}/6秒</span>
             </div>
           </div>
         )}
@@ -262,54 +292,54 @@ export default function VideoCapture({ onCaptureComplete, onCancel }: VideoCaptu
       {/* コントロールボタン */}
       <div className="bg-gray-900 p-4">
         {!hasRecorded ? (
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center">
             {!isRecording ? (
               <button
                 onClick={startRecording}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 transition-colors flex items-center gap-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-6 py-3 sm:px-8 sm:py-4 transition-colors flex items-center gap-2"
               >
-                <Video size={24} />
-                <span className="ml-2">録画開始</span>
+                <Video size={20} className="sm:w-6 sm:h-6" />
+                <span className="text-sm sm:text-base">録画開始</span>
               </button>
             ) : (
               <button
                 onClick={stopRecording}
-                className="bg-red-600 hover:bg-red-700 text-white rounded-full p-4 transition-colors flex items-center gap-2 animate-pulse"
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full px-6 py-3 sm:px-8 sm:py-4 transition-colors flex items-center gap-2"
               >
-                <div className="w-6 h-6 bg-white rounded"></div>
-                <span className="ml-2">録画停止</span>
+                <Square size={20} className="sm:w-6 sm:h-6" />
+                <span className="text-sm sm:text-base">録画停止</span>
               </button>
             )}
           </div>
         ) : (
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-3 sm:gap-4">
             <button
               onClick={handleReset}
-              className="bg-gray-600 hover:bg-gray-700 text-white rounded-lg py-2 px-6 flex items-center gap-2"
+              className="bg-gray-600 hover:bg-gray-700 text-white rounded-lg py-2 px-4 sm:py-2 sm:px-6 flex items-center gap-2 text-sm sm:text-base"
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={16} className="sm:w-[18px] sm:h-[18px]" />
               撮り直す
             </button>
             <button
               onClick={handleComplete}
               disabled={!extractedImages.front || !extractedImages.back || processingVideo}
-              className="bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 px-6 flex items-center gap-2 disabled:opacity-50"
+              className="bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 px-4 sm:py-2 sm:px-6 flex items-center gap-2 disabled:opacity-50 text-sm sm:text-base"
             >
-              <Check size={18} />
+              <Check size={16} className="sm:w-[18px] sm:h-[18px]" />
               完了
             </button>
           </div>
         )}
       </div>
 
-      {/* 使い方の説明 */}
+      {/* 使い方の説明 - モバイル対応 */}
       {!isRecording && !hasRecorded && (
-        <div className="bg-blue-900 p-3 text-blue-100">
+        <div className="bg-blue-900 p-2 sm:p-3 text-blue-100">
           <div className="flex items-start gap-2">
-            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+            <AlertCircle size={14} className="mt-0.5 flex-shrink-0 sm:w-4 sm:h-4" />
             <div className="text-xs">
               <p className="font-semibold mb-1">撮影方法:</p>
-              <ol className="space-y-1">
+              <ol className="space-y-0.5 sm:space-y-1">
                 <li>1. 録画ボタンを押して開始</li>
                 <li>2. 最初の3秒で表面を撮影</li>
                 <li>3. 次の3秒で裏面を撮影</li>
