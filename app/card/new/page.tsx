@@ -164,10 +164,65 @@ export default function NewCardPage() {
   };
 
   const fetchUrlInfo = async (urls: string[]) => {
-    // 複数URLを並列で処理
-    const fetchPromises = urls.map(async (url) => {
-      if (!url || fetchingUrls.includes(url)) return null;
+    // 有効なURLのみフィルタリング
+    const validUrls = urls.filter(url => url && !fetchingUrls.includes(url));
+    
+    if (validUrls.length === 0) return;
+    
+    // 複数URLを一括処理する新しいAPIを使用
+    if (validUrls.length > 1) {
+      setFetchingUrls(prev => [...prev, ...validUrls]);
       
+      try {
+        const response = await fetch('/api/analyze-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: validUrls })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('複数URL統合解析結果:', data);
+          
+          setFormData(prev => {
+            const businessContent = data.businessContent || prev.businessContent;
+            let notes = prev.notes;
+            
+            // 各URLの要約をメモに追加
+            if (data.summaries && Object.keys(data.summaries).length > 0) {
+              const summaryText = Object.entries(data.summaries)
+                .map(([url, summary]) => `【${url}】\n${summary}`)
+                .join('\n\n');
+              
+              notes = notes 
+                ? `${notes}\n\n=== URL情報 ===\n${summaryText}`.trim()
+                : `=== URL情報 ===\n${summaryText}`;
+            }
+            
+            // 会社情報が取得できた場合、該当フィールドを更新
+            if (data.companyInfo) {
+              const info = data.companyInfo;
+              return {
+                ...prev,
+                companyName: info.companyName || prev.companyName,
+                businessContent,
+                notes,
+                emails: info.email ? [info.email, ...prev.emails.filter((e: string) => e !== info.email)].slice(0, 6) : prev.emails,
+                phones: info.phone ? [info.phone, ...prev.phones.filter((p: string) => p !== info.phone)].slice(0, 6) : prev.phones
+              };
+            }
+            
+            return { ...prev, businessContent, notes };
+          });
+        }
+      } catch (error) {
+        console.error('複数URL解析エラー:', error);
+      } finally {
+        setFetchingUrls(prev => prev.filter(u => !validUrls.includes(u)));
+      }
+    } else if (validUrls.length === 1) {
+      // 単一URLの場合は従来のAPIを使用
+      const url = validUrls[0];
       setFetchingUrls(prev => [...prev, url]);
       
       try {
@@ -179,47 +234,35 @@ export default function NewCardPage() {
         
         if (response.ok) {
           const data = await response.json();
-          return { url, data };
+          console.log(`URL情報取得完了 - ${url}:`, data);
+          
+          setFormData(prev => {
+            let businessContent = prev.businessContent;
+            let notes = prev.notes;
+            
+            // 事業内容を追加
+            if (data.businessContent) {
+              businessContent = businessContent 
+                ? `${businessContent}\n\n【${url}】\n${data.businessContent}`.trim()
+                : `【${url}】\n${data.businessContent}`;
+            }
+            
+            // メモに要約を追加
+            const summary = data.summary || '情報を取得できませんでした';
+            const additionalInfo = data.additionalInfo ? `\n追加情報: ${data.additionalInfo}` : '';
+            notes = notes 
+              ? `${notes}\n\n【${url}の要約】\n${summary}${additionalInfo}`.trim()
+              : `【${url}の要約】\n${summary}${additionalInfo}`;
+            
+            return { ...prev, businessContent, notes };
+          });
         }
       } catch (error) {
         console.error(`URL情報取得エラー (${url}):`, error);
       } finally {
         setFetchingUrls(prev => prev.filter(u => u !== url));
       }
-      return null;
-    });
-
-    // 全てのURLの取得を待つ
-    const results = await Promise.all(fetchPromises);
-    
-    // 取得した情報をまとめて更新
-    setFormData(prev => {
-      let businessContent = prev.businessContent;
-      let notes = prev.notes;
-      
-      results.forEach(result => {
-        if (result) {
-          const { url, data } = result;
-          console.log(`URL情報取得完了 - ${url}:`, data);
-          
-          // 事業内容を追加
-          if (data.businessContent) {
-            businessContent = businessContent 
-              ? `${businessContent}\n\n【${url}】\n${data.businessContent}`.trim()
-              : `【${url}】\n${data.businessContent}`;
-          }
-          
-          // メモに要約を追加
-          const summary = data.summary || '情報を取得できませんでした';
-          const additionalInfo = data.additionalInfo ? `\n追加情報: ${data.additionalInfo}` : '';
-          notes = notes 
-            ? `${notes}\n\n【${url}の要約】\n${summary}${additionalInfo}`.trim()
-            : `【${url}の要約】\n${summary}${additionalInfo}`;
-        }
-      });
-      
-      return { ...prev, businessContent, notes };
-    });
+    }
   };
 
   const analyzeWithAI = async () => {
