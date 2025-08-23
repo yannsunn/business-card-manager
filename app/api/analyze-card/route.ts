@@ -16,11 +16,27 @@ export async function POST(request: NextRequest) {
   console.log('画像解析APIが呼び出されました');
   
   try {
-    const { frontImage, backImage } = await request.json();
+    const body = await request.json();
+    const { frontImage, backImage } = body;
+    
+    // 画像データのサイズを確認
+    const frontSize = frontImage ? Math.round(frontImage.length * 0.75 / 1024) : 0;
+    const backSize = backImage ? Math.round(backImage.length * 0.75 / 1024) : 0;
+    
     console.log('画像データ受信:', { 
-      frontImageLength: frontImage?.length || 0, 
-      backImageLength: backImage?.length || 0 
+      frontImageSize: `${frontSize}KB`,
+      backImageSize: `${backSize}KB`,
+      totalSize: `${frontSize + backSize}KB`
     });
+    
+    // サイズ制限チェック（4MBまで）
+    if (frontSize > 4096 || backSize > 4096) {
+      console.error('画像サイズが大きすぎます');
+      return NextResponse.json({ 
+        error: '画像サイズが大きすぎます。画像を圧縮してください。',
+        details: `表面: ${frontSize}KB, 裏面: ${backSize}KB`
+      }, { status: 413 });
+    }
 
     if (!frontImage) {
       console.error('表面画像がありません');

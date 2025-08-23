@@ -75,28 +75,84 @@ export default function NewCardPage() {
     console.log('🔍 processFiles開始: ファイル数=', files.length);
     console.log('🔍 現在のステップ:', step);
     
-    const readFile = (file: File): Promise<string> => {
-      return new Promise((resolve) => {
+    // 画像をリサイズ・圧縮する関数（モバイル対応）
+    const resizeImage = (file: File, maxWidth: number = 1920, maxHeight: number = 1920, quality: number = 0.85): Promise<string> => {
+      return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // キャンバスサイズを計算
+            let width = img.width;
+            let height = img.height;
+            
+            // モバイルの場合はさらに小さく
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            if (isMobile) {
+              maxWidth = 1280;
+              maxHeight = 1280;
+            }
+            
+            if (width > maxWidth || height > maxHeight) {
+              if (width / height > maxWidth / maxHeight) {
+                height = Math.round((maxWidth / width) * height);
+                width = maxWidth;
+              } else {
+                width = Math.round((maxHeight / height) * width);
+                height = maxHeight;
+              }
+            }
+            
+            // キャンバスで画像をリサイズ
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Canvas context取得失敗'));
+              return;
+            }
+            
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 圧縮してBase64に変換
+            const base64 = canvas.toDataURL('image/jpeg', quality);
+            console.log(`画像圧縮完了: ${img.width}x${img.height} → ${width}x${height}`);
+            console.log(`ファイルサイズ: 約${Math.round(base64.length * 0.75 / 1024)}KB`);
+            resolve(base64);
+          };
+          img.onerror = () => reject(new Error('画像の読み込みに失敗'));
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('ファイルの読み込みに失敗'));
         reader.readAsDataURL(file);
       });
     };
 
-    // 最初の画像を表面として設定
+    // 最初の画像を表面として設定（リサイズ・圧縮）
     if (files[0]) {
-      const base64 = await readFile(files[0]);
-      console.log('🔍 表面画像設定完了');
-      setUploadedImages(prev => ({ ...prev, front: base64 }));
-      setFormData(prev => ({ ...prev, frontImageBase64: base64 }));
+      try {
+        const base64 = await resizeImage(files[0]);
+        console.log('🔍 表面画像設定完了');
+        setUploadedImages(prev => ({ ...prev, front: base64 }));
+        setFormData(prev => ({ ...prev, frontImageBase64: base64 }));
+      } catch (error) {
+        console.error('表面画像の処理エラー:', error);
+        alert('画像の処理に失敗しました。別の画像をお試しください。');
+      }
     }
 
-    // 2枚目があれば裏面として設定
+    // 2枚目があれば裏面として設定（リサイズ・圧縮）
     if (files[1]) {
-      const base64 = await readFile(files[1]);
-      console.log('🔍 裏面画像設定完了');
-      setUploadedImages(prev => ({ ...prev, back: base64 }));
-      setFormData(prev => ({ ...prev, backImageBase64: base64 }));
+      try {
+        const base64 = await resizeImage(files[1]);
+        console.log('🔍 裏面画像設定完了');
+        setUploadedImages(prev => ({ ...prev, back: base64 }));
+        setFormData(prev => ({ ...prev, backImageBase64: base64 }));
+      } catch (error) {
+        console.error('裏面画像の処理エラー:', error);
+        alert('画像の処理に失敗しました。別の画像をお試しください。');
+      }
     }
     
     console.log('🔍 processFiles終了: ステップは変更なし（uploadのまま）');
@@ -132,16 +188,60 @@ export default function NewCardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
+    // 画像をリサイズ・圧縮する
+    const resizeImage = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            const maxSize = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 1280 : 1920;
+            
+            if (width > maxSize || height > maxSize) {
+              if (width > height) {
+                height = Math.round((maxSize / width) * height);
+                width = maxSize;
+              } else {
+                width = Math.round((maxSize / height) * width);
+                height = maxSize;
+              }
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Canvas context取得失敗'));
+              return;
+            }
+            
+            ctx.drawImage(img, 0, 0, width, height);
+            const base64 = canvas.toDataURL('image/jpeg', 0.85);
+            console.log(`${side}画像圧縮: ${img.width}x${img.height} → ${width}x${height}`);
+            resolve(base64);
+          };
+          img.onerror = () => reject(new Error('画像読み込み失敗'));
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('ファイル読み込み失敗'));
+        reader.readAsDataURL(file);
+      });
+    };
+
+    try {
+      const base64 = await resizeImage(file);
       setUploadedImages(prev => ({ ...prev, [side]: base64 }));
       setFormData(prev => ({ 
         ...prev, 
         [`${side}ImageBase64`]: base64 
       }));
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(`${side}画像の処理エラー:`, error);
+      alert('画像の処理に失敗しました。別の画像をお試しください。');
+    }
   };
 
   const scanQRCode = (base64Image: string): Promise<string | null> => {
