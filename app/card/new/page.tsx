@@ -467,12 +467,12 @@ export default function NewCardPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
-      <div className="max-w-4xl mx-auto p-6 md:p-8">
-        <header className="mb-6 flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-white">名刺を追加</h2>
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <header className="mb-4 sm:mb-6 flex justify-between items-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">名刺を追加</h2>
           <Link
             href="/dashboard"
-            className="bg-gray-700 text-gray-300 rounded-lg py-2 px-4 hover:bg-gray-600 flex items-center gap-2"
+            className="bg-gray-700 text-gray-300 rounded-lg py-2 px-3 sm:px-4 hover:bg-gray-600 flex items-center gap-2 text-sm sm:text-base"
           >
             <ArrowLeft size={18} />
             一覧に戻る
@@ -503,7 +503,7 @@ export default function NewCardPage() {
                       <p className="text-gray-400 mt-2">複数枚の画像を同時にドロップできます</p>
                     </div>
                   ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* カメラ撮影 */}
                     <input
                       ref={cameraInputRef}
@@ -686,7 +686,7 @@ export default function NewCardPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                       氏名 <span className="text-red-400">*</span>

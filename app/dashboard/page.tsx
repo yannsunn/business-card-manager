@@ -70,29 +70,29 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
-      <div className="max-w-7xl mx-auto p-6 md:p-8">
-        <header className="mb-8 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 md:p-8">
+        <header className="mb-6 sm:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">名刺管理システム</h1>
-            <p className="text-sm text-gray-400 mt-2">{user?.email}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">名刺管理システム</h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-2">{user?.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="bg-gray-700 text-white rounded-lg py-2 px-4 hover:bg-gray-600 flex items-center gap-2"
+            className="bg-gray-700 text-white rounded-lg py-2 px-4 hover:bg-gray-600 flex items-center gap-2 text-sm sm:text-base w-full sm:w-auto"
           >
-            <LogOut size={18} />
+            <LogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
             ログアウト
           </button>
         </header>
 
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+        <div className="relative mb-4 sm:mb-6">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
             placeholder="氏名、会社名などで検索..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 sm:py-3 pl-10 pr-4 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -106,19 +106,21 @@ export default function DashboardPage() {
               <Link
                 key={card.id}
                 href={`/card/${card.id}`}
-                className="bg-gray-800 p-4 rounded-lg flex items-center justify-between hover:bg-gray-700 transition-colors block"
+                className="bg-gray-800 p-3 sm:p-4 rounded-lg flex items-center justify-between hover:bg-gray-700 transition-colors block"
               >
                 <div className="flex-1 overflow-hidden">
-                  <p className="font-semibold text-lg text-white truncate">
+                  <p className="font-semibold text-base sm:text-lg text-white truncate">
                     {card.name}
                   </p>
-                  <p className="text-sm text-gray-400 truncate">
+                  <p className="text-xs sm:text-sm text-gray-400 truncate">
                     {card.companyName} {card.title ? `/ ${card.title}` : ''}
                   </p>
                 </div>
-                <div className="text-right ml-4 flex-shrink-0">
-                  <p className="text-sm text-gray-300">
-                    交換日: {card.exchangeDate || '未設定'}
+                <div className="text-right ml-2 sm:ml-4 flex-shrink-0">
+                  <p className="text-xs sm:text-sm text-gray-300">
+                    <span className="hidden sm:inline">交換日: </span>
+                    <span className="sm:hidden">{card.exchangeDate?.substring(5) || '-'}</span>
+                    <span className="hidden sm:inline">{card.exchangeDate || '未設定'}</span>
                   </p>
                 </div>
               </Link>
@@ -127,24 +129,24 @@ export default function DashboardPage() {
         </div>
 
         {/* フローティングアクションボタン */}
-        <div className="fixed bottom-8 right-8 flex flex-col gap-3">
+        <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-3">
           <Link
             href="/card/bulk"
-            className="bg-green-600 text-white rounded-full p-4 shadow-lg hover:bg-green-700 group relative"
+            className="bg-green-600 text-white rounded-full p-3 sm:p-4 shadow-lg hover:bg-green-700 group relative"
             title="一括アップロード"
           >
-            <Upload size={24} />
-            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            <Upload size={20} className="sm:w-6 sm:h-6" />
+            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
               一括アップロード
             </span>
           </Link>
           <Link
             href="/card/new"
-            className="bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 group relative"
+            className="bg-blue-600 text-white rounded-full p-3 sm:p-4 shadow-lg hover:bg-blue-700 group relative"
             title="名刺を追加"
           >
-            <Plus size={24} />
-            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            <Plus size={20} className="sm:w-6 sm:h-6" />
+            <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-800 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
               名刺を追加
             </span>
           </Link>
