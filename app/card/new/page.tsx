@@ -309,10 +309,10 @@ export default function NewCardPage() {
             }
             
             // 事業内容もメモに追加
-            if (businessContent && !notes.includes(businessContent)) {
-              notes = notes
-                ? `${notes}\n\n=== 事業内容 ===\n${businessContent}`.trim()
-                : `=== 事業内容 ===\n${businessContent}`;
+            if (businessContent && notes && !notes.includes(businessContent)) {
+              notes = `${notes}\n\n=== 事業内容 ===\n${businessContent}`.trim();
+            } else if (businessContent && !notes) {
+              notes = `=== 事業内容 ===\n${businessContent}`;
             }
             
             // 会社情報が取得できた場合、該当フィールドを更新
