@@ -110,4 +110,4 @@ vercel --prod
 
 ## ライセンス
 
-MIT
+MIT# Deploy trigger Thu Aug 28 00:09:49 JST 2025
