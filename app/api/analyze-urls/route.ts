@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extractNestedUrls, isShortUrl, normalizeUrl } from '@/lib/urlParser';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -44,7 +45,6 @@ async function fetchUrlContent(url: string): Promise<string> {
 export async function POST(request: NextRequest) {
   try {
     const { urls } = await request.json();
-    console.log('複数URL解析リクエスト:', urls);
 
     if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json({ error: 'URLの配列が必要です' }, { status: 400 });
@@ -59,11 +59,42 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 複数URLのコンテンツを並列で取得
+    // ネストされたURLも抽出
+    const allUrls = [...urls];
+    urls.forEach(url => {
+      const nested = extractNestedUrls(url);
+      allUrls.push(...nested);
+    });
+    
+    // 重複を削除して正規化
+    const uniqueUrls = [...new Set(allUrls.map(url => normalizeUrl(url)))];
+    
+    // 複数URLのコンテンツを並列で取得（最大10件）
     const urlContents = await Promise.all(
-      urls.map(async (url) => {
-        const content = await fetchUrlContent(url);
-        return { url, content };
+      uniqueUrls.slice(0, 10).map(async (url) => {
+        // 短縮URLの場合は展開を試みる
+        let targetUrl = url;
+        if (isShortUrl(url)) {
+          try {
+            const response = await fetch(url, {
+              method: 'HEAD',
+              redirect: 'follow',
+              signal: AbortSignal.timeout(5000),
+            });
+            if (response.url && response.url !== url) {
+              targetUrl = response.url;
+            }
+          } catch {
+            // 展開に失敗した場合は元のURLを使用
+          }
+        }
+        
+        const content = await fetchUrlContent(targetUrl);
+        return { 
+          url: targetUrl, 
+          originalUrl: url !== targetUrl ? url : undefined,
+          content 
+        };
       })
     );
 
