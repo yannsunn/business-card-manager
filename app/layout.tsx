@@ -1,6 +1,8 @@
 'use client';
 
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorNotificationProvider } from '@/components/ErrorNotification';
 import "./globals.css";
 
 export default function RootLayout({
@@ -17,9 +19,13 @@ export default function RootLayout({
         <meta name="theme-color" content="#1f2937" />
       </head>
       <body className="antialiased bg-gray-900 text-gray-200 min-h-screen">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ErrorBoundary>
+          <ErrorNotificationProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </ErrorNotificationProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

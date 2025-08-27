@@ -12,6 +12,9 @@ import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
 import { Plus, Search, LogOut, Upload } from 'lucide-react';
 import Link from 'next/link';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useErrorNotification } from '@/components/ErrorNotification';
+import { fromFirebaseError, ErrorCode } from '@/lib/errors';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -19,6 +22,9 @@ export default function DashboardPage() {
   const [cards, setCards] = useState<BusinessCard[]>([]);
   const [filteredCards, setFilteredCards] = useState<BusinessCard[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const { handleError, withErrorHandling } = useErrorHandler();
+  const { showError } = useErrorNotification();
 
   useEffect(() => {
     if (!user) {
@@ -29,17 +35,40 @@ export default function DashboardPage() {
     const cardsCollection = collection(db, 'users', user.uid, 'cards');
     const q = query(cardsCollection);
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const cardsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as BusinessCard));
-      setCards(cardsData);
-      setFilteredCards(cardsData);
-    });
+    const unsubscribe = onSnapshot(
+      q, 
+      (snapshot) => {
+        try {
+          const cardsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as BusinessCard));
+          setCards(cardsData);
+          setFilteredCards(cardsData);
+          setIsLoading(false);
+        } catch (error) {
+          handleError(error, { context: 'cards-fetch' });
+          showError('名刺データの読み込みに失敗しました');
+          setIsLoading(false);
+        }
+      },
+      (error) => {
+        // Firestoreエラーのハンドリング
+        const bcError = fromFirebaseError(error);
+        handleError(bcError, { context: 'firestore-listener' });
+        
+        if (bcError.code === ErrorCode.FIREBASE_PERMISSION_DENIED) {
+          showError('アクセス権限がありません。再度ログインしてください');
+          router.push('/auth');
+        } else {
+          showError(bcError.message);
+        }
+        setIsLoading(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, [user, router]);
+  }, [user, router, handleError, showError]);
 
   useEffect(() => {
     const filtered = cards.filter(card => 
@@ -64,8 +93,18 @@ export default function DashboardPage() {
   // };
 
   const handleLogout = async () => {
-    await logout();
-    router.push('/auth');
+    await withErrorHandling(
+      async () => {
+        await logout();
+        router.push('/auth');
+      },
+      {
+        context: { action: 'logout' },
+        onError: () => {
+          showError('ログアウトに失敗しました。再度お試しください');
+        }
+      }
+    );
   };
 
   return (
@@ -97,7 +136,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          {filteredCards.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+              <p className="text-gray-400 mt-2">名刺を読み込んでいます...</p>
+            </div>
+          ) : filteredCards.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               まだ名刺が登録されていません。
             </p>

@@ -4,18 +4,23 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
     try {
       if (isSignUp) {
@@ -27,23 +32,19 @@ export default function AuthPage() {
     } catch (error) {
       const err = error as { code?: string };
       setError(getErrorMessage(err.code || 'unknown'));
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    setError('');
+    
     try {
-      console.log('Google認証開始...');
-      console.log('現在のドメイン:', window.location.hostname);
-      console.log('Firebase Auth Domain:', auth.app.options.authDomain);
-      console.log('Firebase Project ID:', auth.app.options.projectId);
-      
       await signInWithGoogle();
-      console.log('Google認証成功');
       router.push('/dashboard');
     } catch (error: any) {
-      console.error('Googleログインエラー:', error);
-      console.error('エラーコード:', error?.code);
-      console.error('エラーメッセージ:', error?.message);
       
       // エラーメッセージの詳細化
       let errorMessage = 'Googleログインに失敗しました。';
@@ -63,6 +64,34 @@ export default function AuthPage() {
       }
       
       setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setError('メールアドレスを入力してください');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setShowResetPassword(false);
+      setTimeout(() => setResetEmailSent(false), 5000);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'auth/user-not-found') {
+        setError('このメールアドレスは登録されていません');
+      } else {
+        setError('パスワードリセットメールの送信に失敗しました');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -84,8 +113,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4 py-8">
+      <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-lg w-full max-w-md">
         <h2 className="text-2xl font-bold text-center text-white mb-6">
           名刺管理システムへようこそ
         </h2>
@@ -96,13 +125,51 @@ export default function AuthPage() {
           </div>
         )}
 
+        {resetEmailSent && (
+          <div className="bg-green-900 border border-green-600 text-green-300 px-4 py-3 rounded-lg mb-4">
+            <p className="text-sm">パスワードリセットメールを送信しました</p>
+          </div>
+        )}
+
+        {showResetPassword ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">パスワードをリセットするメールアドレスを入力してください</p>
+            <input
+              type="email"
+              placeholder="メールアドレス"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 px-4 text-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="email"
+              disabled={isLoading}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handlePasswordReset}
+                disabled={isLoading}
+                className="flex-1 bg-blue-600 text-white rounded-lg py-3 px-4 hover:bg-blue-700 transition-colors font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? '送信中...' : 'リセットメールを送信'}
+              </button>
+              <button
+                onClick={() => setShowResetPassword(false)}
+                disabled={isLoading}
+                className="flex-1 bg-gray-600 text-white rounded-lg py-3 px-4 hover:bg-gray-700 transition-colors font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="email"
             placeholder="メールアドレス"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 px-4 text-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            autoComplete="email"
+            disabled={isLoading}
             required
           />
           <input
@@ -110,26 +177,52 @@ export default function AuthPage() {
             placeholder="パスワード"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 px-4 text-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            autoComplete="current-password"
+            disabled={isLoading}
             required
           />
           <div className="flex gap-4">
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white rounded-lg py-2 px-4 hover:bg-blue-700"
+              disabled={isLoading}
+              className="w-full bg-blue-600 text-white rounded-lg py-3 px-4 hover:bg-blue-700 transition-colors font-medium text-base active:bg-blue-800 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isSignUp ? '新規登録' : 'ログイン'}
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  処理中...
+                </>
+              ) : (
+                isSignUp ? '新規登録' : 'ログイン'
+              )}
             </button>
           </div>
+          {!isSignUp && (
+            <button
+              type="button"
+              onClick={() => setShowResetPassword(true)}
+              className="w-full text-blue-400 hover:text-blue-300 text-sm mt-2"
+            >
+              パスワードを忘れた方
+            </button>
+          )}
         </form>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setIsSignUp(!isSignUp)}
-          className="w-full mt-4 text-gray-400 hover:text-gray-300 text-sm"
-        >
-          {isSignUp ? 'すでにアカウントをお持ちの方' : 'アカウントを新規作成'}
-        </button>
+        {!showResetPassword && (
+          <button
+            type="button"
+            onClick={() => setIsSignUp(!isSignUp)}
+            disabled={isLoading}
+            className="w-full mt-4 text-gray-400 hover:text-gray-300 text-sm py-2 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSignUp ? 'すでにアカウントをお持ちの方' : 'アカウントを新規作成'}
+          </button>
+        )}
 
         <div className="my-6 flex items-center">
           <hr className="flex-grow border-gray-600" />
@@ -139,7 +232,8 @@ export default function AuthPage() {
 
         <button
           onClick={handleGoogleSignIn}
-          className="w-full bg-white text-gray-800 rounded-lg py-2 px-4 flex items-center justify-center gap-2 hover:bg-gray-200"
+          disabled={isLoading || showResetPassword}
+          className="w-full bg-white text-gray-800 rounded-lg py-3 px-4 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors font-medium text-base active:bg-gray-300 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg className="w-5 h-5" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />

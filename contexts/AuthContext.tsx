@@ -8,7 +8,9 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -30,20 +32,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // リダイレクト結果のチェック
+    getRedirectResult(auth)
+      .then(() => {})
+      .catch(() => {});
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth状態変更:', user ? `ユーザー: ${user.uid}` : 'ログアウト');
       setUser(user);
       setLoading(false);
-      
-      // 認証状態の詳細ログ
-      if (user) {
-        console.log('認証済みユーザー情報:', {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          provider: user.providerData[0]?.providerId
-        });
-      }
     });
 
     return unsubscribe;
@@ -63,7 +59,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    
+    // モバイルデバイスの検出
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    try {
+      if (isMobile) {
+        // モバイルではリダイレクト方式を使用
+        await signInWithRedirect(auth, provider);
+      } else {
+        // デスクトップではポップアップ方式を使用
+        await signInWithPopup(auth, provider);
+      }
+    } catch {
+      // ポップアップがブロックされた場合はリダイレクトにフォールバック
+      await signInWithRedirect(auth, provider);
+    }
   };
 
   const value: AuthContextType = {

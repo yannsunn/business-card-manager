@@ -1,64 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BusinessCardError, ErrorCode, fromAPIError, logError, withRetry } from '@/lib/errors';
 
 // Vercelの環境変数を明示的に取得
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env['GEMINI_API_KEY'];
 
-// 環境変数チェック用ログ
-console.log('⭐ GEMINI_API_KEY 状態チェック:');
-console.log('  - 存在:', !!GEMINI_API_KEY);
-console.log('  - 長さ:', GEMINI_API_KEY?.length || 0);
-console.log('  - プレフィックス:', GEMINI_API_KEY?.substring(0, 7));
-console.log('  - NODE_ENV:', process.env.NODE_ENV);
-console.log('  - VERCEL_ENV:', process.env.VERCEL_ENV);
-console.log('  - 全環境変数キー:', Object.keys(process.env).filter(k => k.includes('GEMINI')).join(', '));
-
 export async function POST(request: NextRequest) {
-  console.log('画像解析APIが呼び出されました');
   
   try {
-    const body = await request.json();
+    // リクエストボディの検証
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      throw new BusinessCardError(
+        'リクエストデータが不正です',
+        ErrorCode.API_INVALID_REQUEST,
+        400
+      );
+    }
+    
     const { frontImage, backImage } = body;
     
     // 画像データのサイズを確認
     const frontSize = frontImage ? Math.round(frontImage.length * 0.75 / 1024) : 0;
     const backSize = backImage ? Math.round(backImage.length * 0.75 / 1024) : 0;
     
-    console.log('画像データ受信:', { 
-      frontImageSize: `${frontSize}KB`,
-      backImageSize: `${backSize}KB`,
-      totalSize: `${frontSize + backSize}KB`
-    });
     
     // サイズ制限チェック（4MBまで）
     if (frontSize > 4096 || backSize > 4096) {
-      console.error('画像サイズが大きすぎます');
-      return NextResponse.json({ 
-        error: '画像サイズが大きすぎます。画像を圧縮してください。',
-        details: `表面: ${frontSize}KB, 裏面: ${backSize}KB`
-      }, { status: 413 });
+      throw new BusinessCardError(
+        '画像サイズが大きすぎます（最大4MBまで）',
+        ErrorCode.IMAGE_SIZE_TOO_LARGE,
+        413,
+        true,
+        { frontSize, backSize }
+      );
     }
 
     if (!frontImage) {
-      console.error('表面画像がありません');
-      return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
+      throw new BusinessCardError(
+        '表面画像が必要です',
+        ErrorCode.API_INVALID_REQUEST,
+        400
+      );
     }
 
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-      console.error('Gemini API key is not configured properly');
-      console.error('Current key:', GEMINI_API_KEY ? `Set (length: ${GEMINI_API_KEY.length})` : 'Not set');
-      console.error('Environment:', process.env.NODE_ENV);
-      // デモ用のダミーデータを返す
-      return NextResponse.json({
-        name: '',
-        companyName: '',
-        title: '',
-        emails: [],
-        phones: [],
-        line_ids: [],
-        urls: [],
-        other_info: '',
-        error: 'API設定エラー: Gemini APIキーが正しく設定されていません'
-      });
+      throw new BusinessCardError(
+        'APIキーが設定されていません',
+        ErrorCode.API_SERVER_ERROR,
+        500,
+        false,
+        { hasKey: !!GEMINI_API_KEY, environment: process.env.NODE_ENV }
+      );
     }
 
     const parts = [
@@ -82,9 +76,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log('Calling Gemini API...');
-    console.log('API Key length:', GEMINI_API_KEY.length);
-    
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const requestBody = {
       contents: [{
@@ -92,34 +83,59 @@ export async function POST(request: NextRequest) {
       }]
     };
     
-    console.log('Request body size:', JSON.stringify(requestBody).length);
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
+    // リトライロジックでAPIコール
+    const response = await withRetry(
+      () => fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(30000) // 30秒タイムアウト
+      }),
+      {
+        maxAttempts: 3,
+        delay: 2000,
+        shouldRetry: (error: any) => {
+          // 429（レートリミット）や503（サーバーエラー）の場合リトライ
+          const status = error?.status || error?.response?.status;
+          return status === 429 || status === 503;
+        }
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error details:');
-      console.error('Status:', response.status);
-      console.error('Status Text:', response.statusText);
-      console.error('Error Body:', errorText);
       
-      // エラー内容に基づいた詳細なメッセージ
-      let errorMessage = 'Gemini APIエラー';
-      if (response.status === 400) {
-        errorMessage = 'APIキーが無効です';
-      } else if (response.status === 403) {
-        errorMessage = 'APIキーのアクセス権がありません';
-      } else if (response.status === 429) {
-        errorMessage = 'APIの利用制限に達しました';
+      // ステータスコードに基づいたエラーハンドリング
+      let errorCode: ErrorCode;
+      let errorMessage: string;
+      
+      switch (response.status) {
+        case 400:
+          errorCode = ErrorCode.API_INVALID_REQUEST;
+          errorMessage = 'APIキーが無効です';
+          break;
+        case 403:
+          errorCode = ErrorCode.AUTH_UNAUTHORIZED;
+          errorMessage = 'APIキーのアクセス権がありません';
+          break;
+        case 429:
+          errorCode = ErrorCode.API_RATE_LIMIT;
+          errorMessage = 'APIの利用制限に達しました';
+          break;
+        default:
+          errorCode = ErrorCode.API_SERVER_ERROR;
+          errorMessage = 'Gemini APIエラー';
       }
       
-      throw new Error(`${errorMessage}: ${response.status} - ${errorText.substring(0, 200)}`);
+      throw new BusinessCardError(
+        errorMessage,
+        errorCode,
+        response.status,
+        true,
+        { errorBody: errorText.substring(0, 500) }
+      );
     }
 
     const result = await response.json();
@@ -146,18 +162,23 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error: any) {
-    console.error('AI解析エラー詳細:');
-    console.error('Error type:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    // エラーをログに記録
+    const bcError = error instanceof BusinessCardError ? error : fromAPIError(error);
+    logError(bcError, { 
+      endpoint: '/api/analyze-card'
+    });
     
+    // クライアントにエラーレスポンスを返す
     return NextResponse.json(
       { 
-        error: 'AI解析に失敗しました',
-        details: error.message,
-        type: error.name
+        error: bcError.message,
+        code: bcError.code,
+        details: process.env.NODE_ENV === 'development' ? {
+          stack: bcError.stack,
+          context: bcError.context
+        } : undefined
       },
-      { status: 500 }
+      { status: bcError.statusCode }
     );
   }
 }
