@@ -15,13 +15,6 @@ const firebaseConfig = {
 
 // Firebase設定の検証
 if (typeof window !== 'undefined') {
-  console.log('Firebase Config Check:', {
-    hasApiKey: !!firebaseConfig.apiKey,
-    hasAuthDomain: !!firebaseConfig.authDomain,
-    hasProjectId: !!firebaseConfig.projectId,
-    projectId: firebaseConfig.projectId || 'NOT_SET'
-  });
-  
   // 必須設定の確認
   if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
     console.error('Firebase設定が不完全です。.env.localファイルを確認してください。');
@@ -87,12 +80,8 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_EMULAT
     try {
       connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
       connectFirestoreEmulator(db, 'localhost', 8080);
-      console.log('Firebase Emulatorsに接続しました');
-    } catch (error: any) {
+    } catch {
       // 既に接続されている場合はエラーを無視
-      if (!error?.message?.includes('already been called')) {
-        console.error('Emulator接続エラー:', error);
-      }
     }
   }
 }

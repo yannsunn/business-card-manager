@@ -100,7 +100,8 @@ export default function AuthPage() {
       case 'auth/invalid-email':
         return '無効なメールアドレスです。';
       case 'auth/wrong-password':
-        return 'パスワードが間違っています。';
+      case 'auth/invalid-credential':
+        return 'メールアドレスまたはパスワードが間違っています。';
       case 'auth/user-not-found':
         return 'このユーザーは存在しません。';
       case 'auth/email-already-in-use':
@@ -178,7 +179,7 @@ export default function AuthPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-gray-700 border border-gray-600 rounded-lg py-3 px-4 text-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            autoComplete="current-password"
+            autoComplete={isSignUp ? "new-password" : "current-password"}
             disabled={isLoading}
             required
           />
