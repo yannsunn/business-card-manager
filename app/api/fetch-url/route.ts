@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isShortUrl, extractNestedUrls } from '@/lib/urlParser';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -21,17 +22,43 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // URLからコンテンツを取得（モバイル対応改善）
+    // URLが短縮URLやAPIエンドポイントの場合、展開を試みる
+    let finalUrl = url;
+    const redirectChain: string[] = [];
+    
+    // 短縮URLまAPIエンドポイントの場合、リダイレクトを追跡
+    if (isShortUrl(url) || url.includes('/api/') || url.includes('/s/')) {
+      try {
+        const response = await fetch(url, {
+          method: 'HEAD',
+          redirect: 'manual',
+          signal: AbortSignal.timeout(5000),
+        });
+        
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location');
+          if (location) {
+            finalUrl = new URL(location, url).toString();
+            redirectChain.push(finalUrl);
+          }
+        }
+      } catch {
+        // リダイレクト追跡に失敗した場合は元のURLを使用
+      }
+    }
+    
+    // 最終的なURLからコンテンツを取得
     let htmlContent = '';
+    let contentType = 'text/html';
+    
     try {
-      // タイムアウトを設定（モバイルは遅い可能性がある）
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒のタイムアウト
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
-      const webResponse = await fetch(url, {
+      const webResponse = await fetch(finalUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (compatible; BusinessCardBot/1.0; +https://business-card-manager.vercel.app)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml,application/json;q=0.9,*/*;q=0.8',
           'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8'
         },
         signal: controller.signal
@@ -39,11 +66,22 @@ export async function POST(request: NextRequest) {
       
       clearTimeout(timeoutId);
       
+      contentType = webResponse.headers.get('content-type') || 'text/html';
+      
       if (!webResponse.ok) {
-        throw new Error(`Failed to fetch URL: ${webResponse.status}`);
+        // APIエンドポイントの場合、JSONレスポンスの可能性
+        if (webResponse.status === 404 || webResponse.status === 403) {
+          throw new Error(`URLにアクセスできません: ${webResponse.status}`);
+        }
       }
       
-      htmlContent = await webResponse.text();
+      // JSONレスポンスの場合はJSONを文字列化
+      if (contentType.includes('application/json')) {
+        const jsonData = await webResponse.json();
+        htmlContent = JSON.stringify(jsonData, null, 2);
+      } else {
+        htmlContent = await webResponse.text();
+      }
     } catch (fetchError: any) {
       console.error('URL取得エラー:', fetchError);
       const errorMessage = fetchError.name === 'AbortError' 
@@ -58,14 +96,25 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // HTMLから主要なテキストを抽出（簡易版）
-    const textContent = htmlContent
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 10000); // 最初の10000文字に制限
+    // コンテンツタイプに応じてテキストを抽出
+    let textContent = '';
+    
+    if (contentType.includes('application/json')) {
+      // JSONの場合はそのまま使用
+      textContent = htmlContent;
+    } else {
+      // HTMLから主要なテキストを抽出
+      textContent = htmlContent
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 10000);
+    }
+    
+    // ネストされたURLも抽出
+    const nestedUrls = extractNestedUrls(url);
 
     // Gemini APIで要約と情報抽出
     const response = await fetch(
@@ -78,24 +127,32 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `以下のウェブページの内容から、名刺に関連する可能性のある情報を抽出し、JSONオブジェクトとして返してください。
+              text: `以下のコンテンツ（ウェブページ、APIレスポンス、またはJSONデータ）から、名刺に関連する可能性のある情報を抽出し、JSONオブジェクトとして返してください。
 
-URL: ${url}
+元のURL: ${url}
+最終URL: ${finalUrl}
+コンテンツタイプ: ${contentType}
+リダイレクトチェーン: ${redirectChain.join(' -> ')}
+関連URL: ${nestedUrls.join(', ')}
 
-ウェブページの内容:
+コンテンツ:
 ${textContent}
 
 以下の形式でJSONを返してください:
 {
   "summary": "ページの要約（100文字以内）",
   "companyName": "会社名（見つかった場合）",
-  "businessContent": "事業内容（見つかった場合）",
+  "businessContent": "事業内容の詳細（見つかった場合、箇条書きで）",
+  "personName": "個人名（見つかった場合）",
+  "title": "役職（見つかった場合）",
   "address": "住所（見つかった場合）",
   "phone": "電話番号（見つかった場合）",
   "email": "メールアドレス（見つかった場合）",
+  "socialMedia": "ソーシャルメディアアカウント（見つかった場合）",
   "additionalInfo": "その他の重要な情報"
 }
 
+注意: APIエンドポイントやJSONデータの場合も、含まれる情報を適切に解析してください。
 JSONオブジェクトのみを返してください。`
             }]
           }]
