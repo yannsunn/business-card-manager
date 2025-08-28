@@ -95,7 +95,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     "img-src 'self' data: blob: https:; " +
     "font-src 'self' data:; " +
     "connect-src 'self' https://generativelanguage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebase.googleapis.com https://firebaseapp.com wss://*.firebaseio.com https://*.google.com https://*.googleapis.com; " +
-    "frame-src 'self' https://accounts.google.com;"
+    "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://crypto-talon-417715.firebaseapp.com;"
   );
   
   // Other security headers
