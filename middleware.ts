@@ -65,8 +65,8 @@ async function validateCSRF(request: NextRequest): Promise<boolean> {
     return true;
   }
   
-  // Skip for public endpoints
-  const publicEndpoints = ['/api/health', '/api/csrf-token'];
+  // Skip for public endpoints and analyze endpoints temporarily
+  const publicEndpoints = ['/api/health', '/api/csrf-token', '/api/analyze-card', '/api/analyze-urls'];
   if (publicEndpoints.some(endpoint => request.nextUrl.pathname.startsWith(endpoint))) {
     return true;
   }
@@ -94,7 +94,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     "style-src 'self' 'unsafe-inline'; " +
     "img-src 'self' data: blob: https:; " +
     "font-src 'self' data:; " +
-    "connect-src 'self' https://generativelanguage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; " +
+    "connect-src 'self' https://generativelanguage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebase.googleapis.com https://firebaseapp.com wss://*.firebaseio.com https://*.google.com https://*.googleapis.com; " +
     "frame-src 'self' https://accounts.google.com;"
   );
   
