@@ -1,0 +1,66 @@
+// Firebase Storage Security Rules for Business Card Manager
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Helper function to validate image file
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') 
+        && request.resource.size < 5 * 1024 * 1024; // Max 5MB per image
+    }
+    
+    // Helper function to validate image extension
+    function hasValidExtension() {
+      return request.resource.name.matches('.*\\.(jpg|jpeg|png|gif|webp)$');
+    }
+    
+    // User's business card images
+    match /users/{userId}/cards/{cardId}/{imageFile} {
+      // Allow read if user owns the card
+      allow read: if isOwner(userId);
+      
+      // Allow write if user owns the card and file is valid
+      allow write: if isOwner(userId) 
+        && isValidImage()
+        && hasValidExtension()
+        && imageFile.matches('(front|back)\\.(jpg|jpeg|png|gif|webp)$');
+        
+      // Allow delete if user owns the card
+      allow delete: if isOwner(userId);
+    }
+    
+    // User profile images (future feature)
+    match /users/{userId}/profile/{imageFile} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+        && isValidImage()
+        && hasValidExtension()
+        && imageFile == 'avatar.jpg';
+      allow delete: if isOwner(userId);
+    }
+    
+    // Temporary upload directory (auto-cleaned after 24 hours)
+    match /temp/{userId}/{tempFile} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+        && isValidImage()
+        && request.time < resource.timeCreated + duration.value(24, 'h');
+      allow delete: if isOwner(userId);
+    }
+    
+    // Block all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

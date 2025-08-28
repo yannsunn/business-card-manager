@@ -1,22 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractNestedUrls, isShortUrl, normalizeUrl } from '@/lib/urlParser';
+import { validateApiKey, validateUrl, sanitizeHtmlContent, apiRateLimiter, getClientIp, validateArraySize } from '@/lib/security';
+import { getURLCache, BatchURLCache } from '@/lib/cache/urlCache';
+import { URLsAnalysisRequestSchema } from '@/lib/validation/schemas';
+import { withRetry } from '@/lib/utils/retry';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+function generateTags(businessContent: string, _companyInfo?: any): string[] {
+  const tags = new Set<string>();
+  const content = businessContent.toLowerCase();
+  
+  // ビジネスカテゴリの判定
+  if (content.includes('sns') || content.includes('ソーシャル') || content.includes('マーケティング')) {
+    tags.add('SNS運用会社');
+  }
+  if (content.includes('web') || content.includes('ウェブ') || content.includes('ホームページ')) {
+    tags.add('WEB制作');
+  }
+  if (content.includes('システム') || content.includes('開発') || content.includes('ソフトウェア')) {
+    tags.add('システム開発');
+  }
+  if (content.includes('ai') || content.includes('人工知能') || content.includes('機械学習')) {
+    tags.add('AI関連');
+  }
+  if (content.includes('コンサル') || content.includes('戦略') || content.includes('支援')) {
+    tags.add('コンサルティング');
+  }
+  if (content.includes('デザイン') || content.includes('クリエイティブ')) {
+    tags.add('デザイン');
+  }
+  if (content.includes('教育') || content.includes('研修') || content.includes('トレーニング')) {
+    tags.add('教育・研修');
+  }
+  if (content.includes('不動産') || content.includes('建築') || content.includes('建設')) {
+    tags.add('不動産・建築');
+  }
+  if (content.includes('医療') || content.includes('ヘルスケア') || content.includes('健康')) {
+    tags.add('医療・ヘルスケア');
+  }
+  if (content.includes('金融') || content.includes('投資') || content.includes('保険')) {
+    tags.add('金融');
+  }
+  if (content.includes('ec') || content.includes('通販') || content.includes('eコマース')) {
+    tags.add('EC・通販');
+  }
+  if (content.includes('広告') || content.includes('pr') || content.includes('プロモーション')) {
+    tags.add('広告・PR');
+  }
+  
+  return Array.from(tags);
+}
+
 async function fetchUrlContent(url: string): Promise<string> {
+  // Check cache first
+  const cache = getURLCache();
+  const cached = cache.get(url);
+  if (cached) {
+    cache.recordHit();
+    return cached.content;
+  }
+  cache.recordMiss();
+  
   try {
     // モバイル対応のタイムアウト設定
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒のタイムアウト
     
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8'
-      },
-      signal: controller.signal
-    });
+    const response = await withRetry(
+      () => fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8'
+        },
+        signal: controller.signal
+      }),
+      { 
+        maxRetries: 2, 
+        initialDelay: 500,
+        shouldRetry: (error) => {
+          // Don't retry if aborted by timeout
+          if (error.name === 'AbortError') return false;
+          return true;
+        }
+      }
+    );
     
     clearTimeout(timeoutId);
     
@@ -26,14 +95,18 @@ async function fetchUrlContent(url: string): Promise<string> {
     
     const html = await response.text();
     
-    // HTMLから主要なテキストを抽出（簡易版）
-    return html
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    // HTMLから主要なテキストを抽出（セキュリティ対策済み）
+    const sanitizedHtml = sanitizeHtmlContent(html);
+    const content = sanitizedHtml
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .substring(0, 5000); // 各URLごとに5000文字に制限
+    
+    // Cache the content
+    cache.set(url, { content });
+    
+    return content;
   } catch (error: any) {
     console.error(`Failed to fetch ${url}:`, error);
     console.error('Error type:', error.name);
@@ -44,14 +117,31 @@ async function fetchUrlContent(url: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { urls } = await request.json();
-
-    if (!urls || !Array.isArray(urls) || urls.length === 0) {
-      return NextResponse.json({ error: 'URLの配列が必要です' }, { status: 400 });
+    // Rate limiting check
+    const clientIp = getClientIp(request);
+    const rateLimitResult = apiRateLimiter.check(clientIp);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: `リクエストが多すぎます。${rateLimitResult.retryAfter}秒後に再試行してください` },
+        { status: 429 }
+      );
     }
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-      console.error('Gemini API key is not configured');
+    const body = await request.json();
+    
+    // Runtime validation using Zod
+    const parseResult = URLsAnalysisRequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json({ 
+        error: parseResult.error.issues[0].message 
+      }, { status: 400 });
+    }
+    
+    const { urls } = parseResult.data;
+
+    // Validate API key
+    if (!validateApiKey(GEMINI_API_KEY)) {
+      console.error('Invalid or missing Gemini API key');
       return NextResponse.json({ 
         success: false,
         businessContent: 'APIキーが未設定のため情報を取得できません',
@@ -59,11 +149,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // URLのバリデーション
+    const validUrls: string[] = [];
+    for (const url of urls) {
+      const validation = validateUrl(url);
+      if (validation.isValid) {
+        validUrls.push(url);
+      }
+    }
+
+    if (validUrls.length === 0) {
+      return NextResponse.json({ error: '有効なURLがありません' }, { status: 400 });
+    }
+
     // ネストされたURLも抽出
-    const allUrls = [...urls];
-    urls.forEach(url => {
+    const allUrls = [...validUrls];
+    validUrls.forEach(url => {
       const nested = extractNestedUrls(url);
-      allUrls.push(...nested);
+      // ネストされたURLもバリデーション
+      nested.forEach(nestedUrl => {
+        const validation = validateUrl(nestedUrl);
+        if (validation.isValid) {
+          allUrls.push(nestedUrl);
+        }
+      });
     });
     
     // 重複を削除して正規化
@@ -176,11 +285,15 @@ JSONオブジェクトのみを返してください。`;
         enhancedBusinessContent += '\n\n【主要事業】\n' + parsedData.mainBusiness.map((item: string) => `・${item}`).join('\n');
       }
       
+      // タグを自動生成
+      const tags = generateTags(enhancedBusinessContent, parsedData.companyInfo);
+      
       return NextResponse.json({
         success: true,
         businessContent: enhancedBusinessContent,
         summaries: parsedData.summaries || {},
         companyInfo: parsedData.companyInfo || {},
+        tags: tags,
         urlCount: validContents.length
       });
     } catch (parseError) {

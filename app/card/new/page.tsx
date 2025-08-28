@@ -75,6 +75,28 @@ export default function NewCardPage() {
     console.log('🔍 processFiles開始: ファイル数=', files.length);
     console.log('🔍 現在のステップ:', step);
     
+    // Import validation functions
+    const { validateImageFile, validateTotalSize, MAX_IMAGE_SIZE, MAX_TOTAL_SIZE } = await import('@/lib/validation/imageValidation');
+    
+    // Validate total size of all images
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (!validateTotalSize([totalSize], MAX_TOTAL_SIZE)) {
+      alert(`合計画像サイズは${(MAX_TOTAL_SIZE / 1024 / 1024).toFixed(0)}MB以下にしてください`);
+      return;
+    }
+    
+    // Validate each image file
+    for (const file of files) {
+      const validation = await validateImageFile(file);
+      if (!validation.isValid) {
+        alert(validation.error);
+        return;
+      }
+      if (validation.warnings) {
+        console.warn('画像警告:', validation.warnings);
+      }
+    }
+    
     // 画像をリサイズ・圧縮する関数（モバイル対応）
     const resizeImage = (file: File, maxWidth: number = 1920, maxHeight: number = 1920, quality: number = 0.85): Promise<string> => {
       return new Promise((resolve, reject) => {
@@ -387,6 +409,7 @@ export default function NewCardPage() {
               companyName: info.companyName || prev.companyName,
               businessContent,
               notes,
+              tags: data.tags || prev.tags || [],
               emails: info.email ? [info.email, ...prev.emails.filter((e: string) => e !== info.email)].slice(0, 6) : prev.emails,
               phones: info.phone ? [info.phone, ...prev.phones.filter((p: string) => p !== info.phone)].slice(0, 6) : prev.phones
             };
@@ -395,7 +418,7 @@ export default function NewCardPage() {
             return updatedData;
           }
           
-          const updatedData = { ...prev, businessContent, notes };
+          const updatedData = { ...prev, businessContent, notes, tags: data.tags || prev.tags || [] };
           console.log('更新後のフォームデータ:', updatedData);
           return updatedData;
         });

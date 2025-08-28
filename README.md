@@ -46,17 +46,18 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ### 4. Firestoreセキュリティルール
 
-Firebase Consoleで以下のルールを設定：
+`firestore.rules`ファイルを使用してデプロイ：
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
+```bash
+firebase deploy --only firestore:rules
+```
+
+### 5. Firebase Storageセキュリティルール
+
+`firebase-storage.rules`ファイルを使用してデプロイ：
+
+```bash
+firebase deploy --only storage:rules
 ```
 
 ## 開発環境での実行

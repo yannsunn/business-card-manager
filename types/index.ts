@@ -12,6 +12,7 @@ export interface BusinessCard {
   notes?: string;
   frontImageBase64?: string;
   backImageBase64?: string;
+  tags?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

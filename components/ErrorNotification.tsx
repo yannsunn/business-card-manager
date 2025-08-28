@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { BusinessCardError, ErrorCode } from '@/lib/errors';
 
 interface ErrorNotificationProps {
@@ -196,8 +196,77 @@ export const ErrorNotificationProvider: React.FC<{ children: React.ReactNode }> 
 
   return (
     <ErrorNotificationContext.Provider value={{ showError, clearError }}>
-      {children}
-      <ErrorNotification error={error} onClose={clearError} />
+      <ErrorBoundary onError={showError}>
+        {children}
+        <ErrorNotification error={error} onClose={clearError} />
+      </ErrorBoundary>
     </ErrorNotificationContext.Provider>
   );
 };
+
+/**
+ * Error Boundary Component
+ */
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  onError?: (error: Error | BusinessCardError) => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+    
+    // Convert to BusinessCardError if needed
+    const businessError = error instanceof BusinessCardError 
+      ? error 
+      : new BusinessCardError(
+          error.message,
+          ErrorCode.UNKNOWN_ERROR,
+          500,
+          false,
+          { componentStack: errorInfo.componentStack }
+        );
+    
+    // Call the error handler
+    if (this.props.onError) {
+      this.props.onError(businessError);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-red-400 mb-4">エラーが発生しました</h2>
+            <p className="text-gray-300 mb-4">
+              申し訳ございません。予期しないエラーが発生しました。
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              ページを再読み込み
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}

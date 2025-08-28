@@ -1,19 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isShortUrl, extractNestedUrls } from '@/lib/urlParser';
+import { validateApiKey, validateUrl, sanitizeHtmlContent, urlFetchRateLimiter, getClientIp } from '@/lib/security';
+import { URLFetchRequestSchema } from '@/lib/validation/schemas';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
-    console.log('URL情報取得リクエスト:', url);
-
-    if (!url) {
-      return NextResponse.json({ error: 'URLが必要です' }, { status: 400 });
+    // Rate limiting check
+    const clientIp = getClientIp(request);
+    const rateLimitResult = urlFetchRateLimiter.check(clientIp);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: `リクエストが多すぎます。${rateLimitResult.retryAfter}秒後に再試行してください` },
+        { status: 429 }
+      );
     }
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-      console.error('Gemini API key is not configured');
+    const body = await request.json();
+    
+    // Runtime validation using Zod
+    const parseResult = URLFetchRequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json({ 
+        error: parseResult.error.issues[0].message 
+      }, { status: 400 });
+    }
+    
+    const { url } = parseResult.data;
+
+    // Additional security validation
+    const urlValidation = validateUrl(url);
+    if (!urlValidation.isValid) {
+      return NextResponse.json({ error: urlValidation.error }, { status: 400 });
+    }
+
+    // Validate API key
+    if (!validateApiKey(GEMINI_API_KEY)) {
+      console.error('Invalid or missing Gemini API key');
       return NextResponse.json({ 
         success: false,
         summary: 'APIキーが未設定のため情報を取得できません',
@@ -103,10 +127,9 @@ export async function POST(request: NextRequest) {
       // JSONの場合はそのまま使用
       textContent = htmlContent;
     } else {
-      // HTMLから主要なテキストを抽出
-      textContent = htmlContent
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      // HTMLから主要なテキストを抽出（セキュリティ対策済み）
+      const sanitizedHtml = sanitizeHtmlContent(htmlContent);
+      textContent = sanitizedHtml
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()

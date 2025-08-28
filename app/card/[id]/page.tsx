@@ -274,6 +274,36 @@ export default function CardDetailPage({ params }: { params: Promise<{ id: strin
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">タグ</label>
+                <div className="space-y-2">
+                  {(editData.tags || []).map((tag, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={tag}
+                        onChange={(e) => handleArrayChange('tags', index, e.target.value)}
+                        className="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('tags', index)}
+                        className="text-red-400 hover:text-red-300 px-2"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => addArrayItem('tags')}
+                    className="text-sm text-blue-400 hover:text-blue-300"
+                  >
+                    + タグを追加
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">メモ</label>
                 <textarea
                   value={editData.notes || ''}
@@ -367,6 +397,19 @@ export default function CardDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="border-t border-gray-700 pt-4">
                     <h4 className="font-semibold text-gray-400 mb-2">事業内容</h4>
                     <p className="text-gray-300 whitespace-pre-wrap">{card.businessContent}</p>
+                  </div>
+                )}
+
+                {card.tags && card.tags.length > 0 && (
+                  <div className="border-t border-gray-700 pt-4">
+                    <h4 className="font-semibold text-gray-400 mb-2">タグ</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {card.tags.map((tag, index) => (
+                        <span key={index} className="bg-gray-700 text-sm px-3 py-1 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
