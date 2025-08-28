@@ -97,8 +97,8 @@ export default function NewCardPage() {
       }
     }
     
-    // 画像をリサイズ・圧縮する関数（モバイル対応）
-    const resizeImage = (file: File, maxWidth: number = 1920, maxHeight: number = 1920, quality: number = 0.85): Promise<string> => {
+    // 画像をリサイズ・圧縮する関数（文字認識精度を重視）
+    const resizeImage = (file: File, maxWidth: number = 2400, maxHeight: number = 2400, quality: number = 0.95): Promise<string> => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -108,13 +108,15 @@ export default function NewCardPage() {
             let width = img.width;
             let height = img.height;
             
-            // モバイルの場合はさらに小さく
+            // モバイルの場合でも文字認識のために高解像度を維持
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
             if (isMobile) {
-              maxWidth = 1280;
-              maxHeight = 1280;
+              maxWidth = 2000;  // モバイルでも2000pxを維持
+              maxHeight = 2000;
+              quality = 0.92;   // モバイルは少しだけ圧縮率を上げる
             }
             
+            // 元画像が既に小さい場合はリサイズしない
             if (width > maxWidth || height > maxHeight) {
               if (width / height > maxWidth / maxHeight) {
                 height = Math.round((maxWidth / width) * height);
@@ -135,11 +137,25 @@ export default function NewCardPage() {
               return;
             }
             
+            // アンチエイリアスを有効にして描画品質を向上
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
             
-            // 圧縮してBase64に変換
-            const base64 = canvas.toDataURL('image/jpeg', quality);
-            console.log(`画像圧縮完了: ${img.width}x${img.height} → ${width}x${height}`);
+            // PNGフォーマットを試す（文字がくっきりする）
+            let base64: string;
+            const pngData = canvas.toDataURL('image/png');
+            const jpegData = canvas.toDataURL('image/jpeg', quality);
+            
+            // サイズを比較して適切な形式を選択（5MB以下ならPNG優先）
+            if (pngData.length < 5 * 1024 * 1024 / 0.75) { // Base64は約1.33倍のサイズ
+              base64 = pngData;
+              console.log(`画像処理完了(PNG): ${img.width}x${img.height} → ${width}x${height}`);
+            } else {
+              base64 = jpegData;
+              console.log(`画像処理完了(JPEG): ${img.width}x${img.height} → ${width}x${height}`);
+            }
+            
             console.log(`ファイルサイズ: 約${Math.round(base64.length * 0.75 / 1024)}KB`);
             resolve(base64);
           };
@@ -210,7 +226,7 @@ export default function NewCardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 画像をリサイズ・圧縮する
+    // 画像をリサイズ・圧縮する（文字認識精度を重視）
     const resizeImage = (file: File): Promise<string> => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -219,8 +235,10 @@ export default function NewCardPage() {
           img.onload = () => {
             let width = img.width;
             let height = img.height;
-            const maxSize = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 1280 : 1920;
+            // 文字認識精度のため高解像度を維持
+            const maxSize = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 2000 : 2400;
             
+            // 元画像が既に小さい場合はリサイズしない
             if (width > maxSize || height > maxSize) {
               if (width > height) {
                 height = Math.round((maxSize / width) * height);
@@ -240,9 +258,25 @@ export default function NewCardPage() {
               return;
             }
             
+            // アンチエイリアスを有効にして描画品質を向上
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            const base64 = canvas.toDataURL('image/jpeg', 0.85);
-            console.log(`${side}画像圧縮: ${img.width}x${img.height} → ${width}x${height}`);
+            
+            // PNGとJPEGを比較して適切な形式を選択
+            let base64: string;
+            const pngData = canvas.toDataURL('image/png');
+            const jpegData = canvas.toDataURL('image/jpeg', 0.95);
+            
+            // サイズを比較（5MB以下ならPNG優先）
+            if (pngData.length < 5 * 1024 * 1024 / 0.75) {
+              base64 = pngData;
+              console.log(`${side}画像処理(PNG): ${img.width}x${img.height} → ${width}x${height}`);
+            } else {
+              base64 = jpegData;
+              console.log(`${side}画像処理(JPEG): ${img.width}x${img.height} → ${width}x${height}`);
+            }
+            
             resolve(base64);
           };
           img.onerror = () => reject(new Error('画像読み込み失敗'));
