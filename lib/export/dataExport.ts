@@ -112,7 +112,6 @@ export function exportToVCard(cards: BusinessCard[]): string {
 export async function exportToExcel(cards: BusinessCard[]): Promise<Blob> {
   // Dynamic import of xlsx library (optional dependency)
   try {
-    // @ts-expect-error - Optional dependency
     const XLSX = await import('xlsx');
     
     // Prepare data for Excel
