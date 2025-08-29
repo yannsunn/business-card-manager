@@ -5,7 +5,7 @@ import { getURLCache, BatchURLCache } from '@/lib/cache/urlCache';
 import { URLsAnalysisRequestSchema } from '@/lib/validation/schemas';
 import { withRetry } from '@/lib/utils/retry';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBQkGb0kc9kgPLqf4ACnlp3MLEmPJqHgto';
 
 function generateTags(businessContent: string, _companyInfo?: any): string[] {
   const tags = new Set<string>();

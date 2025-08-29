@@ -6,11 +6,10 @@ export const maxDuration = 30; // 30秒のタイムアウト
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  // 環境変数を直接取得（Vercel本番環境）
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  // Gemini APIキー - Vercel環境変数から取得、なければデフォルト値
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBQkGb0kc9kgPLqf4ACnlp3MLEmPJqHgto';
   
   console.log('🔍 analyze-card API called');
-  console.log('🔍 GEMINI_API_KEY exists:', !!GEMINI_API_KEY);
   
   try {
     // リクエストボディの検証

@@ -3,7 +3,7 @@ import { isShortUrl, extractNestedUrls } from '@/lib/urlParser';
 import { validateApiKey, validateUrl, sanitizeHtmlContent, urlFetchRateLimiter, getClientIp } from '@/lib/security';
 import { URLFetchRequestSchema } from '@/lib/validation/schemas';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBQkGb0kc9kgPLqf4ACnlp3MLEmPJqHgto';
 
 export async function POST(request: NextRequest) {
   try {
