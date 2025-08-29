@@ -7,6 +7,11 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   console.log('🔍 analyze-card API called');
+  console.log('🔍 Environment variables:', {
+    hasOpenAI: !!process.env.OPENAI_API_KEY,
+    openAILength: process.env.OPENAI_API_KEY?.length,
+    hasGemini: !!process.env.GEMINI_API_KEY
+  });
   
   try {
     // リクエストボディの検証
@@ -31,11 +36,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // OpenAI Vision APIを使用
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    // OpenAI Vision APIを使用 - 強制的に有効化
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-proj-wMFvzOJqGb9kgPLqf4ACnlp3MLEmPJqH';
     
-    // OpenAIが設定されていない場合は、Google Cloud Vision APIを使用
-    if (!OPENAI_API_KEY) {
+    // OpenAIが利用可能か確認
+    if (!OPENAI_API_KEY || OPENAI_API_KEY.length < 20) {
       console.log('Using Google Cloud Vision API fallback');
       return await analyzeWithGoogleVision(frontImage, backImage);
     }
@@ -76,7 +81,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: "gpt-4-vision-preview",
+          model: "gpt-4o-mini",
           messages: messages,
           max_tokens: 1000
         }),
