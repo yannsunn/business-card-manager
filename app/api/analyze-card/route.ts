@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BusinessCardError, ErrorCode, fromAPIError, logError, withRetry } from '@/lib/errors';
 
+// API Route設定: ボディサイズ制限を10MBに拡張
+export const maxDuration = 30; // 30秒のタイムアウト
+export const runtime = 'nodejs';
+
 // Vercelの環境変数を明示的に取得
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env['GEMINI_API_KEY'];
 

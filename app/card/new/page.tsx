@@ -97,8 +97,8 @@ export default function NewCardPage() {
       }
     }
     
-    // 画像をリサイズ・圧縮する関数（文字認識精度を重視）
-    const resizeImage = (file: File, maxWidth: number = 2400, maxHeight: number = 2400, quality: number = 0.95): Promise<string> => {
+    // 画像をリサイズ・圧縮する関数（文字認識精度を重視しつつサイズ制限対応）
+    const resizeImage = (file: File, maxWidth: number = 1800, maxHeight: number = 1800, quality: number = 0.85): Promise<string> => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -108,12 +108,12 @@ export default function NewCardPage() {
             let width = img.width;
             let height = img.height;
             
-            // モバイルの場合でも文字認識のために高解像度を維持
+            // モバイルの場合でも文字認識のために適度な解像度を維持
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
             if (isMobile) {
-              maxWidth = 2000;  // モバイルでも2000pxを維持
-              maxHeight = 2000;
-              quality = 0.92;   // モバイルは少しだけ圧縮率を上げる
+              maxWidth = 1600;  // モバイルは1600pxに制限
+              maxHeight = 1600;
+              quality = 0.82;   // モバイルは圧縮率を上げる
             }
             
             // 元画像が既に小さい場合はリサイズしない
@@ -142,21 +142,25 @@ export default function NewCardPage() {
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
             
-            // PNGフォーマットを試す（文字がくっきりする）
+            // 常にJPEG形式を使用（サイズ制限対応）
             let base64: string;
-            const pngData = canvas.toDataURL('image/png');
-            const jpegData = canvas.toDataURL('image/jpeg', quality);
+            base64 = canvas.toDataURL('image/jpeg', quality);
             
-            // サイズを比較して適切な形式を選択（5MB以下ならPNG優先）
-            if (pngData.length < 5 * 1024 * 1024 / 0.75) { // Base64は約1.33倍のサイズ
-              base64 = pngData;
-              console.log(`画像処理完了(PNG): ${img.width}x${img.height} → ${width}x${height}`);
-            } else {
-              base64 = jpegData;
-              console.log(`画像処理完了(JPEG): ${img.width}x${img.height} → ${width}x${height}`);
+            // サイズが大きすぎる場合は品質を段階的に下げる
+            let currentQuality = quality;
+            while (base64.length > 1.5 * 1024 * 1024 && currentQuality > 0.5) {
+              currentQuality -= 0.05;
+              base64 = canvas.toDataURL('image/jpeg', currentQuality);
+              console.log(`品質調整: ${currentQuality.toFixed(2)}`);
             }
             
-            console.log(`ファイルサイズ: 約${Math.round(base64.length * 0.75 / 1024)}KB`);
+            console.log(`画像処理完了(JPEG): ${img.width}x${img.height} → ${width}x${height}`);
+            console.log(`ファイルサイズ: 約${Math.round(base64.length * 0.75 / 1024)}KB, 品質: ${currentQuality.toFixed(2)}`);
+            
+            // 最終的なサイズチェック
+            if (base64.length > 2 * 1024 * 1024) {
+              console.warn('画像サイズが大きすぎます。さらに圧縮が必要です。');
+            }
             resolve(base64);
           };
           img.onerror = () => reject(new Error('画像の読み込みに失敗'));
