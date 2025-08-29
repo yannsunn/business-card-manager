@@ -5,6 +5,9 @@ import { BusinessCardError, ErrorCode, fromAPIError, logError, withRetry } from 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env['GEMINI_API_KEY'];
 
 export async function POST(request: NextRequest) {
+  console.log('🔍 analyze-card API called');
+  console.log('🔍 GEMINI_API_KEY exists:', !!GEMINI_API_KEY);
+  console.log('🔍 GEMINI_API_KEY length:', GEMINI_API_KEY?.length);
   
   try {
     // リクエストボディの検証
@@ -106,6 +109,11 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('🔴 Gemini API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText.substring(0, 500)
+      });
       
       // ステータスコードに基づいたエラーハンドリング
       let errorCode: ErrorCode;
@@ -139,7 +147,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
+    console.log('✅ Gemini API Success');
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    console.log('📝 Raw response text:', text.substring(0, 200));
     
     // JSONを抽出
     const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
@@ -147,6 +157,7 @@ export async function POST(request: NextRequest) {
     
     try {
       const parsedData = JSON.parse(jsonString);
+      console.log('✅ Parsed data successfully');
       return NextResponse.json(parsedData);
     } catch {
       // パースエラーの場合は空のデータを返す
