@@ -12,6 +12,10 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  // 環境変数を明示的に含める
+  env: {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

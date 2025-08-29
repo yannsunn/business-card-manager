@@ -5,23 +5,12 @@ import { BusinessCardError, ErrorCode, fromAPIError, logError, withRetry } from 
 export const maxDuration = 30; // 30秒のタイムアウト
 export const runtime = 'nodejs';
 
-// Vercelの環境変数を明示的に取得（動的に取得）
-function getGeminiApiKey() {
-  // 複数の方法で環境変数を取得
-  const key = process.env.GEMINI_API_KEY || 
-              process.env['GEMINI_API_KEY'] ||
-              process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  return key;
-}
-
 export async function POST(request: NextRequest) {
-  const GEMINI_API_KEY = getGeminiApiKey();
+  // 環境変数を直接取得（Vercel本番環境）
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   
   console.log('🔍 analyze-card API called');
-  console.log('🔍 Environment:', process.env.NODE_ENV);
   console.log('🔍 GEMINI_API_KEY exists:', !!GEMINI_API_KEY);
-  console.log('🔍 GEMINI_API_KEY length:', GEMINI_API_KEY?.length);
-  console.log('🔍 First 10 chars:', GEMINI_API_KEY?.substring(0, 10));
   
   try {
     // リクエストボディの検証
@@ -62,19 +51,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE' || GEMINI_API_KEY === 'your_gemini_api_key_here') {
-      console.error('🔴 GEMINI_API_KEY is not properly configured');
-      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('GEMINI')));
+    if (!GEMINI_API_KEY) {
+      console.error('🔴 GEMINI_API_KEY is not configured');
       throw new BusinessCardError(
-        'APIキーが設定されていません。Vercel環境変数を確認してください。',
+        'APIキーが設定されていません',
         ErrorCode.API_SERVER_ERROR,
         500,
-        false,
-        { 
-          hasKey: !!GEMINI_API_KEY, 
-          environment: process.env.NODE_ENV,
-          keyValue: GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE' ? 'placeholder' : 'missing'
-        }
+        false
       );
     }
 
