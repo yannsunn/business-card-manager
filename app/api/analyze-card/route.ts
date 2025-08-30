@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // OpenAI Vision APIを使用 - 強制的に有効化
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-proj-wMFvzOJqGb9kgPLqf4ACnlp3MLEmPJqH';
+    // OpenAI Vision APIを使用
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
     
     // OpenAIが利用可能か確認
     if (!OPENAI_API_KEY || OPENAI_API_KEY.length < 20) {
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
 async function analyzeWithGoogleVision(frontImage: string, backImage: string | null) {
   try {
     // Google Cloud Vision API（TEXT_DETECTION）
-    const API_KEY = process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || 'AIzaSyBQkGb0kc9kgPLqf4ACnlp3MLEmPJqHgto';
+    const API_KEY = process.env.GEMINI_API_KEY!;
     
     const requests = [
       {
