@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { BusinessCard } from '@/types';
-import { Plus, Search, LogOut, Upload, RefreshCw, CheckSquare, Square, Tag, Download } from 'lucide-react';
+import { Plus, Search, LogOut, Upload, RefreshCw, CheckSquare, Square, Tag, Download, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useErrorNotification } from '@/components/ErrorNotification';
@@ -23,6 +23,7 @@ import { useCSRF } from '@/hooks/useCSRF';
 import { useKeyboardNavigation, useAnnounce, useSkipToMain } from '@/hooks/useAccessibility';
 import { AccessibleButton } from '@/components/AccessibleButton';
 import { ExportDialog } from '@/components/ExportDialog';
+import { MatchingDialog } from '@/components/MatchingDialog';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -44,6 +45,8 @@ export default function DashboardPage() {
   const { announce } = useAnnounce();
   const { handleSkip } = useSkipToMain();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isMatchingDialogOpen, setIsMatchingDialogOpen] = useState(false);
+  const [selectedCardForMatching, setSelectedCardForMatching] = useState<BusinessCard | null>(null);
   const { containerRef, focusedIndex } = useKeyboardNavigation(
     filteredCards.length,
     (index) => router.push(`/card/${filteredCards[index].id}`)
@@ -430,12 +433,26 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="text-right ml-2 sm:ml-4 flex-shrink-0">
-                    <p className="text-xs sm:text-sm text-gray-300">
-                      <span className="hidden sm:inline">交換日: </span>
-                      <span className="sm:hidden">{card.exchangeDate?.substring(5) || '-'}</span>
-                      <span className="hidden sm:inline">{card.exchangeDate || '未設定'}</span>
-                    </p>
+                  <div className="text-right ml-2 sm:ml-4 flex-shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectedCardForMatching(card);
+                        setIsMatchingDialogOpen(true);
+                      }}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-xs sm:text-sm hover:bg-blue-700 flex items-center gap-1"
+                      aria-label={`${card.companyName}のマッチング候補を見る`}
+                    >
+                      <Users size={14} />
+                      <span className="hidden sm:inline">マッチング</span>
+                    </button>
+                    <div>
+                      <p className="text-xs sm:text-sm text-gray-300">
+                        <span className="hidden sm:inline">交換日: </span>
+                        <span className="sm:hidden">{card.exchangeDate?.substring(5) || '-'}</span>
+                        <span className="hidden sm:inline">{card.exchangeDate || '未設定'}</span>
+                      </p>
+                    </div>
                   </div>
                 </Link>
               </div>
@@ -470,6 +487,16 @@ export default function DashboardPage() {
           cards={cards}
           isOpen={isExportDialogOpen}
           onClose={() => setIsExportDialogOpen(false)}
+        />
+        
+        <MatchingDialog
+          isOpen={isMatchingDialogOpen}
+          onClose={() => {
+            setIsMatchingDialogOpen(false);
+            setSelectedCardForMatching(null);
+          }}
+          sourceCard={selectedCardForMatching}
+          allCards={cards}
         />
       </div>
     </div>
